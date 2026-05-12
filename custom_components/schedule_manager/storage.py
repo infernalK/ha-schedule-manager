@@ -2,9 +2,19 @@
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
-from typing import Dict, Any
+from typing import Any, Dict
 from .const import STORAGE_KEY, STORAGE_VERSION
-from .models import Schedule, ScheduleGroup, Override
+from .models import (
+    Override,
+    Schedule,
+    ScheduleGroup,
+    group_from_dict,
+    group_to_dict,
+    override_from_dict,
+    override_to_dict,
+    schedule_from_dict,
+    schedule_to_dict,
+)
 
 
 class ScheduleManagerStorage:
@@ -16,16 +26,60 @@ class ScheduleManagerStorage:
 
     async def async_load(self) -> Dict[str, Any]:
         """Load data from storage."""
-        self._data = await self._store.async_load() or {
-            "schedules": {},
-            "groups": {},
-            "overrides": {}
-        }
+        raw = await self._store.async_load() or {}
+        self._data = self._deserialize(raw)
         return self._data
 
+    def _deserialize(self, raw: Dict[str, Any]) -> Dict[str, Any]:
+        """Restore dataclass instances from persisted dict."""
+        base = {
+            "schedules": {},
+            "groups": {},
+            "overrides": {},
+        }
+        if not raw:
+            return base
+
+        schedules: Dict[str, Schedule] = {}
+        for sid, item in raw.get("schedules", {}).items():
+            if isinstance(item, Schedule):
+                schedules[sid] = item
+            else:
+                schedules[sid] = schedule_from_dict(item)
+
+        groups: Dict[str, ScheduleGroup] = {}
+        for gid, item in raw.get("groups", {}).items():
+            if isinstance(item, ScheduleGroup):
+                groups[gid] = item
+            else:
+                groups[gid] = group_from_dict(item)
+
+        overrides: Dict[str, Override] = {}
+        for oid, item in raw.get("overrides", {}).items():
+            if isinstance(item, Override):
+                overrides[oid] = item
+            else:
+                overrides[oid] = override_from_dict(item)
+
+        return {"schedules": schedules, "groups": groups, "overrides": overrides}
+
     async def async_save(self) -> None:
-        """Save data to storage."""
-        await self._store.async_save(self._data)
+        """Save data to storage as JSON-serializable dicts."""
+        payload = {
+            "schedules": {
+                sid: schedule_to_dict(sch)
+                for sid, sch in self.get_schedules().items()
+            },
+            "groups": {
+                gid: group_to_dict(grp)
+                for gid, grp in self.get_groups().items()
+            },
+            "overrides": {
+                oid: override_to_dict(ovr)
+                for oid, ovr in self.get_overrides().items()
+            },
+        }
+        await self._store.async_save(payload)
 
     def get_schedules(self) -> Dict[str, Schedule]:
         """Get all schedules."""

@@ -1,7 +1,8 @@
 """Data coordinator for Schedule Manager."""
 
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
+
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from .const import DOMAIN
@@ -17,7 +18,7 @@ class ScheduleManagerCoordinator(DataUpdateCoordinator):
             hass,
             logger=logging.getLogger(f"{__name__}.{DOMAIN}"),
             name=DOMAIN,
-            update_interval=None,  # Update on demand or periodically
+            update_interval=timedelta(seconds=60),
         )
         self.storage = storage
         self.engine = ScheduleEngine()

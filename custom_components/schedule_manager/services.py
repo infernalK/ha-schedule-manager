@@ -3,9 +3,17 @@
 import voluptuous as vol
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers import config_validation as cv
-from .models import Schedule, ScheduleGroup, TimeBlock
+from .models import Override, Schedule, ScheduleGroup, TimeBlock
 from .storage import ScheduleManagerStorage
 from .const import DOMAIN
+
+
+async def _persist(hass: HomeAssistant, storage: ScheduleManagerStorage) -> None:
+    """Persist storage and refresh coordinator so entities/cards update."""
+    await storage.async_save()
+    coordinator = hass.data.get(DOMAIN, {}).get("coordinator")
+    if coordinator:
+        await coordinator.async_request_refresh()
 
 SERVICE_CREATE_SCHEDULE = "create_schedule"
 SERVICE_ENABLE_SCHEDULE = "enable_schedule"
@@ -72,26 +80,26 @@ async def async_setup_services(hass: HomeAssistant, storage: ScheduleManagerStor
             repeat_days=call.data.get("repeat_days", list(range(7))),
         )
         storage.add_schedule(schedule)
-        await storage.async_save()
+        await _persist(hass, storage)
 
     async def handle_enable_schedule(call: ServiceCall) -> None:
         schedule_id = call.data["schedule_id"]
         schedules = storage.get_schedules()
         if schedule_id in schedules:
             schedules[schedule_id].enabled = True
-            await storage.async_save()
+            await _persist(hass, storage)
 
     async def handle_disable_schedule(call: ServiceCall) -> None:
         schedule_id = call.data["schedule_id"]
         schedules = storage.get_schedules()
         if schedule_id in schedules:
             schedules[schedule_id].enabled = False
-            await storage.async_save()
+            await _persist(hass, storage)
 
     async def handle_delete_schedule(call: ServiceCall) -> None:
         schedule_id = call.data["schedule_id"]
         storage.remove_schedule(schedule_id)
-        await storage.async_save()
+        await _persist(hass, storage)
 
     async def handle_create_group(call: ServiceCall) -> None:
         group = ScheduleGroup(
@@ -100,21 +108,21 @@ async def async_setup_services(hass: HomeAssistant, storage: ScheduleManagerStor
             exclusive=call.data.get("exclusive", False),
         )
         storage.add_group(group)
-        await storage.async_save()
+        await _persist(hass, storage)
 
     async def handle_enable_group(call: ServiceCall) -> None:
         group_id = call.data["group_id"]
         groups = storage.get_groups()
         if group_id in groups:
             groups[group_id].enabled = True
-            await storage.async_save()
+            await _persist(hass, storage)
 
     async def handle_disable_group(call: ServiceCall) -> None:
         group_id = call.data["group_id"]
         groups = storage.get_groups()
         if group_id in groups:
             groups[group_id].enabled = False
-            await storage.async_save()
+            await _persist(hass, storage)
 
     async def handle_set_active_schedule(call: ServiceCall) -> None:
         group_id = call.data["group_id"]
@@ -122,10 +130,9 @@ async def async_setup_services(hass: HomeAssistant, storage: ScheduleManagerStor
         groups = storage.get_groups()
         if group_id in groups:
             groups[group_id].active_schedule = schedule_id
-            await storage.async_save()
+            await _persist(hass, storage)
 
     async def handle_set_override(call: ServiceCall) -> None:
-        from .models import Override
         override = Override(
             target_entity=call.data["target_entity"],
             action_type=call.data["action_type"],
@@ -134,12 +141,12 @@ async def async_setup_services(hass: HomeAssistant, storage: ScheduleManagerStor
             start_time=hass.loop.time(),
         )
         storage.add_override(override)
-        await storage.async_save()
+        await _persist(hass, storage)
 
     async def handle_clear_override(call: ServiceCall) -> None:
         override_id = call.data["override_id"]
         storage.remove_override(override_id)
-        await storage.async_save()
+        await _persist(hass, storage)
 
     hass.services.async_register(DOMAIN, SERVICE_CREATE_SCHEDULE, handle_create_schedule, schema=CREATE_SCHEDULE_SCHEMA)
     hass.services.async_register(DOMAIN, SERVICE_ENABLE_SCHEDULE, handle_enable_schedule, schema=ENABLE_DISABLE_SCHEMA)

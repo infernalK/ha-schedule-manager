@@ -1,19 +1,19 @@
 """Switch platform for Schedule Manager."""
 
 from homeassistant.components.switch import SwitchEntity
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
-from ..const import DOMAIN
+
+from .const import DOMAIN
 
 
-async def async_setup_platform(
+async def async_setup_entry(
     hass: HomeAssistant,
-    config: ConfigType,
+    entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
-    discovery_info: DiscoveryInfoType | None = None,
 ) -> None:
-    """Set up the switch platform."""
+    """Set up the switch platform from a config entry."""
     coordinator = hass.data[DOMAIN]["coordinator"]
     async_add_entities([ScheduleManagerSwitch(coordinator)])
 
@@ -40,7 +40,3 @@ class ScheduleManagerSwitch(SwitchEntity):
     async def async_turn_off(self, **kwargs):
         """Turn the switch off."""
         self._is_on = False
-
-    async def async_update(self) -> None:
-        """Update the switch."""
-        pass
