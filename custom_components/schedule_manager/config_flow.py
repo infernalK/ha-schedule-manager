@@ -12,6 +12,8 @@ from homeassistant.config_entries import (
 from homeassistant.core import callback
 
 from .const import DOMAIN
+from .models import Schedule
+from .services import async_persist, async_sync_planning_entities
 
 
 class ScheduleManagerConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -55,14 +57,31 @@ class ScheduleManagerOptionsFlow(OptionsFlow):
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Manage the options."""
+        """Menu : créer un planning ou options avancées."""
         if user_input is not None:
-            return self.async_create_entry(title="", data=user_input)
+            menu_option = user_input.get("menu_option")
+            if menu_option == "add_schedule":
+                return await self.async_step_add_schedule()
+            if menu_option == "advanced":
+                return await self.async_step_advanced()
 
+        return self.async_show_menu(
+            step_id="init",
+            menu_options=["add_schedule", "advanced"],
+        )
+
+    async def async_step_advanced(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Durée d’override par défaut (stockée dans les options d’entrée)."""
         default_override = self._options.get("default_override_duration", 3600)
 
+        if user_input is not None:
+            merged = {**self._options, **user_input}
+            return self.async_create_entry(title="", data=merged)
+
         return self.async_show_form(
-            step_id="init",
+            step_id="advanced",
             data_schema=vol.Schema(
                 {
                     vol.Optional(
@@ -71,4 +90,33 @@ class ScheduleManagerOptionsFlow(OptionsFlow):
                     ): vol.All(vol.Coerce(int), vol.Range(min=60)),
                 }
             ),
+        )
+
+    async def async_step_add_schedule(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Créer un planning vide (plages ensuite via la carte Lovelace ou les services)."""
+        if user_input is not None:
+            name = str(user_input.get("name", "")).strip()
+            if not name:
+                return self.async_show_form(
+                    step_id="add_schedule",
+                    data_schema=vol.Schema({vol.Required("name"): str}),
+                    errors={"base": "empty_name"},
+                )
+
+            storage = self.hass.data.get(DOMAIN, {}).get("storage")
+            if storage is None:
+                return self.async_abort(reason="storage_unavailable")
+
+            schedule = Schedule(name=name)
+            storage.add_schedule(schedule)
+            await async_persist(self.hass, storage)
+            await async_sync_planning_entities(self.hass)
+
+            return await self.async_step_init()
+
+        return self.async_show_form(
+            step_id="add_schedule",
+            data_schema=vol.Schema({vol.Required("name"): str}),
         )

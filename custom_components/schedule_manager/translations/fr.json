@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Schedule Manager",
-        "description": "Cette intégration crée :\n\n• Un hub — capteur d’état + interrupteur d’activation globale.\n• Un appareil par planning (ex. Salon) — interrupteur pour activer ou désactiver ce planning.\n\nÉtape suivante « Nommer et attribuer » : renommer les appareils et les pièces. « Ignorer et terminer » termine sans tout renommer.\n\nUne seule entrée Schedule Manager est autorisée (évite les doublons dans Paramètres → Services)."
+        "description": "Cette intégration crée :\n\n• Un hub — capteur d’état + interrupteur d’activation globale.\n• Un appareil par planning (ex. Salon) — interrupteur pour activer ou désactiver ce planning.\n\n**Nouveau planning :** Paramètres → Appareils et services → Schedule Manager → menu (⋮) ou fiche d’entrée → **Configurer** → **Créer un planning**.\n\nÉtape suivante « Nommer et attribuer » : renommer les appareils et les pièces. « Ignorer et terminer » termine sans tout renommer.\n\nUne seule entrée Schedule Manager est autorisée (évite les doublons dans Paramètres → Services)."
       }
     },
     "abort": {
@@ -13,12 +13,33 @@
   "options": {
     "step": {
       "init": {
-        "title": "Options Schedule Manager",
-        "description": "Options avancées (durée des overrides, etc.).",
+        "title": "Schedule Manager",
+        "description": "Créez un planning ou ouvrez les réglages avancés.",
+        "menu_options": {
+          "add_schedule": "Créer un planning",
+          "advanced": "Réglages avancés"
+        }
+      },
+      "add_schedule": {
+        "title": "Nouveau planning",
+        "description": "Un appareil et un interrupteur seront créés pour ce planning. Ajoutez les plages horaires ensuite depuis la carte Lovelace « Schedule Manager » ou via le service schedule_manager.update_schedule.",
+        "data": {
+          "name": "Nom du planning"
+        }
+      },
+      "advanced": {
+        "title": "Réglages avancés",
+        "description": "Options pour les overrides et le comportement associé.",
         "data": {
           "default_override_duration": "Durée par défaut d’un override (secondes)"
         }
       }
+    },
+    "error": {
+      "empty_name": "Indiquez un nom pour le planning."
+    },
+    "abort": {
+      "storage_unavailable": "Le stockage Schedule Manager n’est pas disponible. Redémarrez Home Assistant ou rechargez l’intégration."
     }
   }
 }

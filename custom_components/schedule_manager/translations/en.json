@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Schedule Manager",
-        "description": "This integration adds:\n\n• Hub — one device with the status sensor and the global enable switch.\n• One device per schedule you create (e.g. Living room) — each has its own switch to enable or disable that schedule.\n\nOn the next screen you can rename devices and assign rooms. \"Ignore and finish\" skips naming and completes setup.\n\nOnly one Schedule Manager integration can be added (no duplicates)."
+        "description": "This integration adds:\n\n• Hub — one device with the status sensor and the global enable switch.\n• One device per schedule you create (e.g. Living room) — each has its own switch to enable or disable that schedule.\n\n**New schedule:** Settings → Devices & services → Schedule Manager → entry menu (⋮) or the integration card → **Configure** → **Create schedule**.\n\nOn the next screen you can rename devices and assign rooms. \"Ignore and finish\" skips naming and completes setup.\n\nOnly one Schedule Manager integration can be added (no duplicates)."
       }
     },
     "abort": {
@@ -13,12 +13,33 @@
   "options": {
     "step": {
       "init": {
-        "title": "Schedule Manager options",
-        "description": "Advanced options for overrides and related behaviour.",
+        "title": "Schedule Manager",
+        "description": "Create a schedule or open advanced settings.",
+        "menu_options": {
+          "add_schedule": "Create schedule",
+          "advanced": "Advanced settings"
+        }
+      },
+      "add_schedule": {
+        "title": "New schedule",
+        "description": "A device and a switch will be created for this schedule. Add time blocks from the Schedule Manager Lovelace card or with the schedule_manager.update_schedule service.",
+        "data": {
+          "name": "Schedule name"
+        }
+      },
+      "advanced": {
+        "title": "Advanced settings",
+        "description": "Options for overrides and related behaviour.",
         "data": {
           "default_override_duration": "Default override duration (seconds)"
         }
       }
+    },
+    "error": {
+      "empty_name": "Enter a name for the schedule."
+    },
+    "abort": {
+      "storage_unavailable": "Schedule Manager storage is not available. Restart Home Assistant or reload the integration."
     }
   }
 }

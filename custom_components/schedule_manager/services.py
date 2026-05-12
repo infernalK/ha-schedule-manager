@@ -31,6 +31,11 @@ async def _sync_planning_registry(hass: HomeAssistant) -> None:
         await registry.async_sync()
 
 
+async def async_sync_planning_entities(hass: HomeAssistant) -> None:
+    """Public : réaligner appareils / interrupteurs après changement de plannings (UI intégration, etc.)."""
+    await _sync_planning_registry(hass)
+
+
 async def async_delete_schedule(
     hass: HomeAssistant, storage: ScheduleManagerStorage, schedule_id: str
 ) -> bool:
