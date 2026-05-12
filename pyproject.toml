@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ha-schedule-manager"
+version = "0.1.0"
+description = "Schedule Manager integration for Home Assistant"
+authors = [{name = "Your Name"}]
+dependencies = []
+
+[tool.setuptools]
+packages = ["custom_components.schedule_manager"]
+
+[tool.black]
+line-length = 88
+
+[tool.isort]
+profile = "black"

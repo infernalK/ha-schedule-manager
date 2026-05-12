@@ -1,0 +1,22 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Schedule Manager Setup",
+        "description": "Configure Schedule Manager integration."
+      }
+    },
+    "error": {},
+    "abort": {}
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Schedule Manager Options",
+        "data": {
+          "default_override_duration": "Default override duration (seconds)"
+        }
+      }
+    }
+  }
+}
