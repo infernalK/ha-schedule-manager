@@ -1,5 +1,7 @@
 """Storage handling for Schedule Manager."""
 
+from dataclasses import replace
+
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 from typing import Any, Dict
@@ -43,16 +45,27 @@ class ScheduleManagerStorage:
         schedules: Dict[str, Schedule] = {}
         for sid, item in raw.get("schedules", {}).items():
             if isinstance(item, Schedule):
-                schedules[sid] = item
+                sch = item
             else:
-                schedules[sid] = schedule_from_dict(item)
+                sch = schedule_from_dict(item)
+            # La clé JSON doit être la référence unique ; un `id` interne divergent casse la carte / les services.
+            if sch.id != sid:
+                sch = replace(sch, id=sid)
+            schedules[sid] = sch
 
         groups: Dict[str, ScheduleGroup] = {}
         for gid, item in raw.get("groups", {}).items():
             if isinstance(item, ScheduleGroup):
-                groups[gid] = item
+                grp = item
             else:
-                groups[gid] = group_from_dict(item)
+                grp = group_from_dict(item)
+            filtered = [x for x in grp.schedules if x in schedules]
+            active = grp.active_schedule
+            if active is not None and active not in schedules:
+                active = None
+            if filtered != grp.schedules or active != grp.active_schedule:
+                grp = replace(grp, schedules=filtered, active_schedule=active)
+            groups[gid] = grp
 
         overrides: Dict[str, Override] = {}
         for oid, item in raw.get("overrides", {}).items():
