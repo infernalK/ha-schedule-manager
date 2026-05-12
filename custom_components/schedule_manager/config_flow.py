@@ -1,48 +1,71 @@
 """Config flow for Schedule Manager."""
 
+from typing import Any
+
 import voluptuous as vol
-from homeassistant import config_entries
+from homeassistant.config_entries import (
+    ConfigEntry,
+    ConfigFlow,
+    ConfigFlowResult,
+    OptionsFlow,
+)
 from homeassistant.core import callback
+
 from .const import DOMAIN
 
 
-class ScheduleManagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+class ScheduleManagerConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Schedule Manager."""
 
     VERSION = 1
 
-    async def async_step_user(self, user_input=None):
+    async def async_step_user(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         """Handle the initial step."""
         if user_input is not None:
             return self.async_create_entry(title="Schedule Manager", data=user_input)
 
         return self.async_show_form(
             step_id="user",
-            data_schema=vol.Schema({}),
+            data_schema=None,
         )
 
     @staticmethod
     @callback
-    def async_get_options_flow(config_entry):
+    def async_get_options_flow(config_entry: ConfigEntry) -> OptionsFlow:
         """Get the options flow for this handler."""
         return ScheduleManagerOptionsFlow(config_entry)
 
 
-class ScheduleManagerOptionsFlow(config_entries.OptionsFlow):
-    """Handle options."""
+class ScheduleManagerOptionsFlow(OptionsFlow):
+    """Handle options.
 
-    def __init__(self, config_entry):
-        """Initialize options flow."""
-        self.config_entry = config_entry
+    Ne pas assigner ``self.config_entry`` : la classe parent ``OptionsFlow``
+    expose déjà une propriété ``config_entry`` basée sur ``handler``.
+    """
 
-    async def async_step_init(self, user_input=None):
+    def __init__(self, config_entry: ConfigEntry) -> None:
+        """Initialize options flow (copie des options, comme les intégrations core)."""
+        self._options = dict(config_entry.options)
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         """Manage the options."""
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)
 
+        default_override = self._options.get("default_override_duration", 3600)
+
         return self.async_show_form(
             step_id="init",
-            data_schema=vol.Schema({
-                vol.Optional("default_override_duration", default=3600): vol.All(vol.Coerce(int), vol.Range(min=60)),
-            }),
+            data_schema=vol.Schema(
+                {
+                    vol.Optional(
+                        "default_override_duration",
+                        default=default_override,
+                    ): vol.All(vol.Coerce(int), vol.Range(min=60)),
+                }
+            ),
         )
