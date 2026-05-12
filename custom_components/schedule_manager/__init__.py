@@ -1,5 +1,7 @@
 """Schedule Manager integration for Home Assistant."""
 
+import logging
+
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
@@ -10,28 +12,54 @@ from .storage import ScheduleManagerStorage
 from .coordinator import ScheduleManagerCoordinator
 from .services import async_setup_services, async_delete_schedule
 
+_LOGGER = logging.getLogger(__name__)
+
 
 async def async_remove_config_entry_device(
     hass: HomeAssistant, config_entry: ConfigEntry, device_entry: DeviceEntry
 ) -> bool:
-    """Autorise la suppression d’un appareil « Planning » depuis Paramètres → Appareils."""
+    """Gère la suppression d’un appareil depuis Paramètres → Appareils.
+
+    Dans Home Assistant, retourner True = autoriser la suppression dans le registre,
+    False = refuser (bloque l’UI).
+
+    - Hub (identifiant = entry_id seul) : refus — supprimer l’intégration à la place.
+    - Planning (identifiant = entry_id_<schedule_id>) : supprimer le planning puis autoriser.
+    - Identifiants non reconnus : autoriser (nettoyage d’entrées orphelines).
+    """
     storage = hass.data.get(DOMAIN, {}).get("storage")
+    entry_id = str(config_entry.entry_id)
+
     if storage is None:
-        return False
+        _LOGGER.warning(
+            "Schedule Manager: stockage absent — autorisation de suppression appareil %s",
+            device_entry.id,
+        )
+        return True
+
+    matched_domain = False
 
     for domain, ident in device_entry.identifiers:
-        if domain != DOMAIN:
+        if str(domain).lower() != DOMAIN.lower():
             continue
-        # Hub Schedule Manager (capteur / commutateur principal)
-        if ident == config_entry.entry_id:
+        matched_domain = True
+        ident_s = str(ident)
+        # Hub — même identifiant que la config entry (capteur + interrupteur global)
+        if ident_s == entry_id:
             return False
-        prefix = f"{config_entry.entry_id}_"
-        if isinstance(ident, str) and ident.startswith(prefix):
-            schedule_id = ident[len(prefix) :]
+        prefix = f"{entry_id}_"
+        if ident_s.startswith(prefix):
+            schedule_id = ident_s[len(prefix) :]
             await async_delete_schedule(hass, storage, schedule_id)
             return True
 
-    return False
+    if matched_domain:
+        _LOGGER.warning(
+            "Schedule Manager: identifiant domaine %s non géré %s — suppression autorisée",
+            DOMAIN,
+            device_entry.identifiers,
+        )
+    return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
