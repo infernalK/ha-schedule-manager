@@ -3,6 +3,7 @@
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -29,8 +30,19 @@ class ScheduleManagerSensor(CoordinatorEntity, SensorEntity):
     ) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator)
+        self._entry = entry
         self._attr_name = "Schedule Manager Status"
         self._attr_unique_id = f"{DOMAIN}_{entry.entry_id}_status"
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Regroupe capteur et commutateur sous un même appareil logique."""
+        return DeviceInfo(
+            identifiers={(DOMAIN, self._entry.entry_id)},
+            name="Schedule Manager",
+            manufacturer="Community",
+            model="Schedule Manager",
+        )
 
     @property
     def native_value(self):

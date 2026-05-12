@@ -1,27 +1,73 @@
 # Schedule Manager Integration
 
-Home Assistant integration for managing schedules with time blocks and actions.
+Intégration Home Assistant pour des plannings à créneaux et actions (ex. climat).
 
 ## Installation
 
-1. Copy `custom_components/schedule_manager` to your Home Assistant `custom_components` directory.
-2. Restart Home Assistant.
-3. Add the integration via Configuration > Integrations.
+1. Copiez `custom_components/schedule_manager` dans le dossier `custom_components` de Home Assistant.
+2. Redémarrez Home Assistant.
+3. **Paramètres → Appareils et services → Ajouter une intégration** → recherchez *Schedule Manager*.
 
-## Services
+### « Ajouter un pont » vs « Ajouter un service / appareil »
 
-- `schedule_manager.create_schedule`: Create a new schedule
-- `schedule_manager.enable_schedule`: Enable a schedule
-- `schedule_manager.disable_schedule`: Disable a schedule
-- `schedule_manager.delete_schedule`: Delete a schedule
-- `schedule_manager.create_group`: Create a schedule group
-- `schedule_manager.enable_group`: Enable a group
-- `schedule_manager.disable_group`: Disable a group
-- `schedule_manager.set_active_schedule`: Set active schedule in exclusive group
-- `schedule_manager.set_override`: Set temporary override
-- `schedule_manager.clear_override`: Clear override
+Le manifeste utilise `integration_type: "service"` : ce type correspond à une **intégration sans matériel physique** (logique + stockage local). Le libellé exact dépend de la version et de la langue de l’interface Home Assistant.
 
-## Entities
+Les entités sont regroupées sous **un appareil logique** « Schedule Manager » (capteur d’état + commutateur), visible dans l’onglet **Appareils** lié à la passerelle de configuration.
 
-- Sensor: `sensor.schedule_manager_status`
-- Switch: `switch.schedule_manager_enabled`
+## Plannings : ajout, suppression, plages horaires
+
+### Via la carte Lovelace (recommandé)
+
+Après installation de la [Schedule Manager Card](https://github.com/infernalK/ha-schedule-manager-card), vous pouvez :
+
+- créer un planning (nom) ;
+- **Supprimer** un planning ;
+- voir les **plages** (début, fin, type d’action, payload JSON) ;
+- **Retirer** une plage ;
+- **Ajouter une plage** (heures, type d’action, payload JSON — ex. climat : `set_preset_mode` et `{"preset_mode":"comfort"}`).
+
+### Via les services (Automatisations / Outils de développement)
+
+| Service | Rôle |
+|--------|------|
+| `schedule_manager.create_schedule` | Créer un planning (`name` obligatoire ; `time_blocks`, `repeat_days` optionnels) |
+| `schedule_manager.update_schedule` | Modifier un planning : `schedule_id` obligatoire ; `name`, `enabled`, `repeat_days`, `time_blocks` (liste complète si vous modifiez les plages) |
+| `schedule_manager.delete_schedule` | Supprimer un planning (`schedule_id`) |
+| `schedule_manager.enable_schedule` / `disable_schedule` | Activer / désactiver |
+| `schedule_manager.create_group`, `set_active_schedule`, … | Groupes exclusifs, etc. |
+
+**Exemple YAML (action)** — une plage le matin en mode confort :
+
+```yaml
+service: schedule_manager.update_schedule
+data:
+  schedule_id: VOTRE_UUID_PLANNING
+  time_blocks:
+    - start_time: "07:00:00"
+      end_time: "09:00:00"
+      action_type: set_preset_mode
+      action_payload:
+        preset_mode: comfort
+```
+
+Les identifiants `schedule_id` sont ceux affichés dans les **attributs** du capteur `schedules` (clés de l’objet).
+
+## Services (liste complète)
+
+- `schedule_manager.create_schedule`
+- `schedule_manager.update_schedule`
+- `schedule_manager.delete_schedule`
+- `schedule_manager.enable_schedule` / `disable_schedule`
+- `schedule_manager.create_group`
+- `schedule_manager.enable_group` / `disable_group`
+- `schedule_manager.set_active_schedule`
+- `schedule_manager.set_override` / `clear_override`
+
+## Entités et appareils
+
+- **Appareil « Schedule Manager » (hub)** : capteur d’état (résumé + attributs pour la carte Lovelace) et commutateur générique.
+- **Un appareil par planning** : chaque planning apparaît comme **appareil séparé** (nom du planning), relié au hub via *via_device*. Il contient une **entité commutateur** avec le nom du planning : elle reflète **activé / désactivé** pour ce planning (équivalent aux services `enable_schedule` / `disable_schedule`).
+
+Les plannings créés ou supprimés (carte, services, automatisations) ajoutent ou retirent automatiquement ces appareils / entités.
+
+Les `entity_id` exacts dépendent de votre installation (`sensor.schedule_manager_<entry>_status`, `switch.<nom_du_planning>`, etc.).

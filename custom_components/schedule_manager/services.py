@@ -1,5 +1,7 @@
 """Services for Schedule Manager."""
 
+import uuid
+
 import voluptuous as vol
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers import config_validation as cv
@@ -15,7 +17,14 @@ async def _persist(hass: HomeAssistant, storage: ScheduleManagerStorage) -> None
     if coordinator:
         await coordinator.async_request_refresh()
 
+
+async def async_persist(hass: HomeAssistant, storage: ScheduleManagerStorage) -> None:
+    """Public helper for entities (save + refresh coordinator)."""
+    await _persist(hass, storage)
+
+
 SERVICE_CREATE_SCHEDULE = "create_schedule"
+SERVICE_UPDATE_SCHEDULE = "update_schedule"
 SERVICE_ENABLE_SCHEDULE = "enable_schedule"
 SERVICE_DISABLE_SCHEDULE = "disable_schedule"
 SERVICE_DELETE_SCHEDULE = "delete_schedule"
@@ -28,14 +37,25 @@ SERVICE_SET_ACTIVE_SCHEDULE = "set_active_schedule"
 SERVICE_SET_OVERRIDE = "set_override"
 SERVICE_CLEAR_OVERRIDE = "clear_override"
 
+TIME_BLOCKS_LIST = vol.All(cv.ensure_list, [vol.Schema({
+    vol.Required("start_time"): cv.time,
+    vol.Required("end_time"): cv.time,
+    vol.Required("action_type"): cv.string,
+    vol.Required("action_payload"): dict,
+    vol.Optional("id"): cv.string,
+})])
+
 CREATE_SCHEDULE_SCHEMA = vol.Schema({
     vol.Required("name"): cv.string,
-    vol.Optional("time_blocks"): vol.All(cv.ensure_list, [vol.Schema({
-        vol.Required("start_time"): cv.time,
-        vol.Required("end_time"): cv.time,
-        vol.Required("action_type"): cv.string,
-        vol.Required("action_payload"): dict,
-    })]),
+    vol.Optional("time_blocks"): TIME_BLOCKS_LIST,
+    vol.Optional("repeat_days"): vol.All(cv.ensure_list, [vol.In(range(7))]),
+})
+
+UPDATE_SCHEDULE_SCHEMA = vol.Schema({
+    vol.Required("schedule_id"): cv.string,
+    vol.Optional("name"): cv.string,
+    vol.Optional("enabled"): cv.boolean,
+    vol.Optional("time_blocks"): TIME_BLOCKS_LIST,
     vol.Optional("repeat_days"): vol.All(cv.ensure_list, [vol.In(range(7))]),
 })
 
@@ -70,16 +90,47 @@ CLEAR_OVERRIDE_SCHEMA = vol.Schema({
 })
 
 
+def _time_blocks_from_service(blocks_data: list) -> list[TimeBlock]:
+    """Build TimeBlock instances from validated service data."""
+    blocks: list[TimeBlock] = []
+    for tb in blocks_data:
+        block_id = tb.get("id") or str(uuid.uuid4())
+        blocks.append(TimeBlock(
+            start_time=tb["start_time"],
+            end_time=tb["end_time"],
+            action_type=tb["action_type"],
+            action_payload=tb["action_payload"],
+            id=block_id,
+        ))
+    return blocks
+
+
 async def async_setup_services(hass: HomeAssistant, storage: ScheduleManagerStorage) -> None:
     """Set up services for Schedule Manager."""
 
     async def handle_create_schedule(call: ServiceCall) -> None:
         schedule = Schedule(
             name=call.data["name"],
-            time_blocks=[TimeBlock(**tb) for tb in call.data.get("time_blocks", [])],
+            time_blocks=_time_blocks_from_service(call.data.get("time_blocks", [])),
             repeat_days=call.data.get("repeat_days", list(range(7))),
         )
         storage.add_schedule(schedule)
+        await _persist(hass, storage)
+
+    async def handle_update_schedule(call: ServiceCall) -> None:
+        schedule_id = call.data["schedule_id"]
+        schedules = storage.get_schedules()
+        if schedule_id not in schedules:
+            return
+        sch = schedules[schedule_id]
+        if "name" in call.data:
+            sch.name = call.data["name"]
+        if "enabled" in call.data:
+            sch.enabled = call.data["enabled"]
+        if "repeat_days" in call.data:
+            sch.repeat_days = call.data["repeat_days"]
+        if "time_blocks" in call.data:
+            sch.time_blocks = _time_blocks_from_service(call.data["time_blocks"])
         await _persist(hass, storage)
 
     async def handle_enable_schedule(call: ServiceCall) -> None:
@@ -149,6 +200,7 @@ async def async_setup_services(hass: HomeAssistant, storage: ScheduleManagerStor
         await _persist(hass, storage)
 
     hass.services.async_register(DOMAIN, SERVICE_CREATE_SCHEDULE, handle_create_schedule, schema=CREATE_SCHEDULE_SCHEMA)
+    hass.services.async_register(DOMAIN, SERVICE_UPDATE_SCHEDULE, handle_update_schedule, schema=UPDATE_SCHEDULE_SCHEMA)
     hass.services.async_register(DOMAIN, SERVICE_ENABLE_SCHEDULE, handle_enable_schedule, schema=ENABLE_DISABLE_SCHEMA)
     hass.services.async_register(DOMAIN, SERVICE_DISABLE_SCHEDULE, handle_disable_schedule, schema=ENABLE_DISABLE_SCHEMA)
     hass.services.async_register(DOMAIN, SERVICE_DELETE_SCHEDULE, handle_delete_schedule, schema=DELETE_SCHEMA)

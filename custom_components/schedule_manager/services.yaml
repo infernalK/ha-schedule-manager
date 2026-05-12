@@ -63,6 +63,49 @@ delete_schedule:
       selector:
         text:
 
+update_schedule:
+  name: Update Schedule
+  description: Update an existing schedule (name, enabled, days, time blocks)
+  fields:
+    schedule_id:
+      name: Schedule ID
+      description: ID of the schedule to update
+      required: true
+      selector:
+        text:
+    name:
+      name: Name
+      description: New display name
+      required: false
+      selector:
+        text:
+    enabled:
+      name: Enabled
+      required: false
+      selector:
+        boolean:
+    repeat_days:
+      name: Repeat Days
+      description: Days 0=Monday … 6=Sunday
+      required: false
+      selector:
+        select:
+          multiple: true
+          options:
+            - "0"
+            - "1"
+            - "2"
+            - "3"
+            - "4"
+            - "5"
+            - "6"
+    time_blocks:
+      name: Time Blocks
+      description: Full list of time blocks (replaces existing when set)
+      required: false
+      selector:
+        object:
+
 create_group:
   name: Create Group
   description: Create a new schedule group
