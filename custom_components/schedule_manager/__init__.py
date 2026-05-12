@@ -4,6 +4,7 @@ import logging
 
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.const import Platform
 from homeassistant.helpers.device_registry import DeviceEntry
 
@@ -50,7 +51,10 @@ async def async_remove_config_entry_device(
         prefix = f"{entry_id}_"
         if ident_s.startswith(prefix):
             schedule_id = ident_s[len(prefix) :]
-            await async_delete_schedule(hass, storage, schedule_id)
+            try:
+                await async_delete_schedule(hass, storage, schedule_id)
+            except HomeAssistantError:
+                return False
             return True
 
     if matched_domain:

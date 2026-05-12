@@ -4,7 +4,8 @@ import uuid
 from typing import Any
 
 import voluptuous as vol
-from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError, ServiceCall
 from homeassistant.helpers import config_validation as cv
 from .models import Override, Schedule, ScheduleGroup, TimeBlock
 from .storage import ScheduleManagerStorage
@@ -43,7 +44,16 @@ async def async_delete_schedule(
 
     Retourne True si le planning existait encore dans le stockage.
     Toujours déclenche persist + sync pour retirer une entité orpheline du registre.
+
+    Lève ``HomeAssistantError`` si c’est le dernier planning : il faut en créer un autre avant.
     """
+    schedules = storage.get_schedules()
+    if schedule_id in schedules and len(schedules) <= 1:
+        raise HomeAssistantError(
+            "Impossible de supprimer le dernier planning. Créez d’abord un autre planning "
+            "(intégration → Configurer → Créer un planning, ou la carte Lovelace), puis supprimez celui-ci."
+        )
+
     existed = schedule_id in storage.get_schedules()
     storage.detach_schedule_from_groups(schedule_id)
     if existed:

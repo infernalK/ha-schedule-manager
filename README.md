@@ -39,7 +39,7 @@ Après installation de la [Schedule Manager Card](https://github.com/infernalK/h
 |--------|------|
 | `schedule_manager.create_schedule` | Créer un planning (`name` obligatoire ; `time_blocks`, `repeat_days` optionnels) |
 | `schedule_manager.update_schedule` | Modifier un planning : `schedule_id` obligatoire ; `name`, `enabled`, `repeat_days`, `time_blocks` (liste complète si vous modifiez les plages) |
-| `schedule_manager.delete_schedule` | Supprimer un planning (`schedule_id`) |
+| `schedule_manager.delete_schedule` | Supprimer un planning (`schedule_id`) — **refusé** s’il ne reste qu’un seul planning (il faut en créer un autre avant). |
 | `schedule_manager.enable_schedule` / `disable_schedule` | Activer / désactiver |
 | `schedule_manager.create_group`, `set_active_schedule`, … | Groupes exclusifs, etc. |
 
