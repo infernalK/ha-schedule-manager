@@ -4,8 +4,8 @@ import uuid
 from typing import Any
 
 import voluptuous as vol
-from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import HomeAssistantError, ServiceCall
+from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv
 from .models import Override, Schedule, ScheduleGroup, TimeBlock
 from .storage import ScheduleManagerStorage
