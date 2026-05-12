@@ -1,6 +1,7 @@
 """Services for Schedule Manager."""
 
 import uuid
+from typing import Any
 
 import voluptuous as vol
 from homeassistant.core import HomeAssistant, ServiceCall
@@ -69,19 +70,57 @@ TIME_BLOCKS_LIST = vol.All(cv.ensure_list, [vol.Schema({
     vol.Optional("id"): cv.string,
 })])
 
-CREATE_SCHEDULE_SCHEMA = vol.Schema({
-    vol.Required("name"): cv.string,
-    vol.Optional("time_blocks"): TIME_BLOCKS_LIST,
-    vol.Optional("repeat_days"): vol.All(cv.ensure_list, [vol.In(range(7))]),
-})
 
-UPDATE_SCHEDULE_SCHEMA = vol.Schema({
-    vol.Required("schedule_id"): cv.string,
-    vol.Optional("name"): cv.string,
-    vol.Optional("enabled"): cv.boolean,
-    vol.Optional("time_blocks"): TIME_BLOCKS_LIST,
-    vol.Optional("repeat_days"): vol.All(cv.ensure_list, [vol.In(range(7))]),
-})
+def _rewrite_time_block_times_for_cv_time(tb: Any) -> Any:
+    """`cv.time` n'accepte pas 24:00:00 — aligné sur la carte (23:59:59)."""
+    if not isinstance(tb, dict):
+        return tb
+    out = dict(tb)
+    for key in ("start_time", "end_time"):
+        if key not in out:
+            continue
+        val = out[key]
+        if not isinstance(val, str):
+            continue
+        parts = val.strip().split(":")
+        try:
+            if int(parts[0]) >= 24:
+                out[key] = "23:59:59"
+        except (ValueError, IndexError):
+            pass
+    return out
+
+
+def _rewrite_schedule_service_data(data: Any) -> Any:
+    """Pré-valide : réécrit les heures >= 24h dans `time_blocks`."""
+    if not isinstance(data, dict):
+        return data
+    out = dict(data)
+    tbs = out.get("time_blocks")
+    if isinstance(tbs, list):
+        out["time_blocks"] = [_rewrite_time_block_times_for_cv_time(b) for b in tbs]
+    return out
+
+
+CREATE_SCHEDULE_SCHEMA = vol.All(
+    _rewrite_schedule_service_data,
+    vol.Schema({
+        vol.Required("name"): cv.string,
+        vol.Optional("time_blocks"): TIME_BLOCKS_LIST,
+        vol.Optional("repeat_days"): vol.All(cv.ensure_list, [vol.In(range(7))]),
+    }),
+)
+
+UPDATE_SCHEDULE_SCHEMA = vol.All(
+    _rewrite_schedule_service_data,
+    vol.Schema({
+        vol.Required("schedule_id"): cv.string,
+        vol.Optional("name"): cv.string,
+        vol.Optional("enabled"): cv.boolean,
+        vol.Optional("time_blocks"): TIME_BLOCKS_LIST,
+        vol.Optional("repeat_days"): vol.All(cv.ensure_list, [vol.In(range(7))]),
+    }),
+)
 
 ENABLE_DISABLE_SCHEMA = vol.Schema({
     vol.Required("schedule_id"): cv.string,
