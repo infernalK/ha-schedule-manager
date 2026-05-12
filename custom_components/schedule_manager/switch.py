@@ -15,17 +15,17 @@ async def async_setup_entry(
 ) -> None:
     """Set up the switch platform from a config entry."""
     coordinator = hass.data[DOMAIN]["coordinator"]
-    async_add_entities([ScheduleManagerSwitch(coordinator)])
+    async_add_entities([ScheduleManagerSwitch(coordinator, entry)])
 
 
 class ScheduleManagerSwitch(SwitchEntity):
     """Representation of a Schedule Manager switch."""
 
-    def __init__(self, coordinator):
+    def __init__(self, coordinator, entry: ConfigEntry):
         """Initialize the switch."""
         self._coordinator = coordinator
         self._attr_name = "Schedule Manager Enabled"
-        self._attr_unique_id = f"{DOMAIN}_enabled"
+        self._attr_unique_id = f"{DOMAIN}_{entry.entry_id}_enabled"
         self._is_on = True
 
     @property
