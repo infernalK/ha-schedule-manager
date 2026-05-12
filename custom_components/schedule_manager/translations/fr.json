@@ -1,0 +1,24 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Schedule Manager",
+        "description": "Cette intégration crée :\n\n• Un hub — capteur d’état + interrupteur d’activation globale.\n• Un appareil par planning (ex. Salon) — interrupteur pour activer ou désactiver ce planning.\n\nÉtape suivante « Nommer et attribuer » : renommer les appareils et les pièces. « Ignorer et terminer » termine sans tout renommer.\n\nUne seule entrée Schedule Manager est autorisée (évite les doublons dans Paramètres → Services)."
+      }
+    },
+    "abort": {
+      "already_configured": "Schedule Manager est déjà configuré. Supprimez l’entrée existante dans Paramètres si vous voulez recommencer."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Options Schedule Manager",
+        "description": "Options avancées (durée des overrides, etc.).",
+        "data": {
+          "default_override_duration": "Durée par défaut d’un override (secondes)"
+        }
+      }
+    }
+  }
+}

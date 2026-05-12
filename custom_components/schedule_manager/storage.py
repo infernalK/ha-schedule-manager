@@ -123,6 +123,22 @@ class ScheduleManagerStorage:
         if schedule_id in self._data["schedules"]:
             del self._data["schedules"][schedule_id]
 
+    def detach_schedule_from_groups(self, schedule_id: str) -> None:
+        """Retire un planning de toutes les listes de groupes (références + actif)."""
+        groups = self._data.get("groups", {})
+        for gid, grp in list(groups.items()):
+            if schedule_id not in grp.schedules and grp.active_schedule != schedule_id:
+                continue
+            new_schedules = [x for x in grp.schedules if x != schedule_id]
+            new_active = grp.active_schedule
+            if new_active == schedule_id:
+                new_active = None
+            elif new_active is not None and new_active not in new_schedules:
+                new_active = None
+            groups[gid] = replace(
+                grp, schedules=new_schedules, active_schedule=new_active
+            )
+
     def remove_group(self, group_id: str) -> None:
         """Remove a group."""
         if group_id in self._data["groups"]:

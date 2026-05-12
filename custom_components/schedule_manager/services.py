@@ -23,6 +23,25 @@ async def async_persist(hass: HomeAssistant, storage: ScheduleManagerStorage) ->
     await _persist(hass, storage)
 
 
+async def async_delete_schedule(
+    hass: HomeAssistant, storage: ScheduleManagerStorage, schedule_id: str
+) -> bool:
+    """Supprime un planning, met à jour les groupes et retire l’entité interrupteur.
+
+    Retourne True si le planning existait encore dans le stockage.
+    Toujours déclenche persist + sync pour retirer une entité orpheline du registre.
+    """
+    existed = schedule_id in storage.get_schedules()
+    storage.detach_schedule_from_groups(schedule_id)
+    if existed:
+        storage.remove_schedule(schedule_id)
+    await async_persist(hass, storage)
+    registry = hass.data.get(DOMAIN, {}).get("schedule_planning_registry")
+    if registry:
+        await registry.async_sync()
+    return existed
+
+
 SERVICE_CREATE_SCHEDULE = "create_schedule"
 SERVICE_UPDATE_SCHEDULE = "update_schedule"
 SERVICE_ENABLE_SCHEDULE = "enable_schedule"
@@ -149,8 +168,7 @@ async def async_setup_services(hass: HomeAssistant, storage: ScheduleManagerStor
 
     async def handle_delete_schedule(call: ServiceCall) -> None:
         schedule_id = call.data["schedule_id"]
-        storage.remove_schedule(schedule_id)
-        await _persist(hass, storage)
+        await async_delete_schedule(hass, storage, schedule_id)
 
     async def handle_create_group(call: ServiceCall) -> None:
         group = ScheduleGroup(

@@ -3,10 +3,35 @@
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
+from homeassistant.helpers.device_registry import DeviceEntry
+
 from .const import DOMAIN, PLATFORMS
 from .storage import ScheduleManagerStorage
 from .coordinator import ScheduleManagerCoordinator
-from .services import async_setup_services
+from .services import async_setup_services, async_delete_schedule
+
+
+async def async_remove_config_entry_device(
+    hass: HomeAssistant, config_entry: ConfigEntry, device_entry: DeviceEntry
+) -> bool:
+    """Autorise la suppression d’un appareil « Planning » depuis Paramètres → Appareils."""
+    storage = hass.data.get(DOMAIN, {}).get("storage")
+    if storage is None:
+        return False
+
+    for domain, ident in device_entry.identifiers:
+        if domain != DOMAIN:
+            continue
+        # Hub Schedule Manager (capteur / commutateur principal)
+        if ident == config_entry.entry_id:
+            return False
+        prefix = f"{config_entry.entry_id}_"
+        if isinstance(ident, str) and ident.startswith(prefix):
+            schedule_id = ident[len(prefix) :]
+            await async_delete_schedule(hass, storage, schedule_id)
+            return True
+
+    return False
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

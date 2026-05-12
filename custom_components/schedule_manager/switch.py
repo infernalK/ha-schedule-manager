@@ -38,8 +38,8 @@ class ScheduleManagerSwitch(SwitchEntity):
         return DeviceInfo(
             identifiers={(DOMAIN, self._entry.entry_id)},
             name="Schedule Manager",
-            manufacturer="Community",
-            model="Schedule Manager",
+            manufacturer="Schedule Manager",
+            model="Hub",
         )
 
     @property

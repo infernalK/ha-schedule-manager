@@ -40,7 +40,7 @@ class SchedulePlanningSwitchEntity(CoordinatorEntity, SwitchEntity):
             identifiers={(DOMAIN, f"{self._entry.entry_id}_{self._schedule_id}")},
             name=sch.name,
             manufacturer="Schedule Manager",
-            model="Planning",
+            model="Planning horaire",
             via_device=(DOMAIN, self._entry.entry_id),
         )
 
