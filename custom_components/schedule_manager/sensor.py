@@ -18,17 +18,19 @@ async def async_setup_entry(
 ) -> None:
     """Set up the sensor platform from a config entry."""
     coordinator: ScheduleManagerCoordinator = hass.data[DOMAIN]["coordinator"]
-    async_add_entities([ScheduleManagerSensor(coordinator)])
+    async_add_entities([ScheduleManagerSensor(coordinator, entry)])
 
 
 class ScheduleManagerSensor(CoordinatorEntity, SensorEntity):
     """Representation of a Schedule Manager sensor."""
 
-    def __init__(self, coordinator: ScheduleManagerCoordinator) -> None:
+    def __init__(
+        self, coordinator: ScheduleManagerCoordinator, entry: ConfigEntry
+    ) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator)
         self._attr_name = "Schedule Manager Status"
-        self._attr_unique_id = f"{DOMAIN}_status"
+        self._attr_unique_id = f"{DOMAIN}_{entry.entry_id}_status"
 
     @property
     def native_value(self):
