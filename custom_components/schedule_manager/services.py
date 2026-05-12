@@ -23,6 +23,13 @@ async def async_persist(hass: HomeAssistant, storage: ScheduleManagerStorage) ->
     await _persist(hass, storage)
 
 
+async def _sync_planning_registry(hass: HomeAssistant) -> None:
+    """Aligne les entités interrupteur « un par planning » sur le stockage."""
+    registry = hass.data.get(DOMAIN, {}).get("schedule_planning_registry")
+    if registry:
+        await registry.async_sync()
+
+
 async def async_delete_schedule(
     hass: HomeAssistant, storage: ScheduleManagerStorage, schedule_id: str
 ) -> bool:
@@ -36,9 +43,7 @@ async def async_delete_schedule(
     if existed:
         storage.remove_schedule(schedule_id)
     await async_persist(hass, storage)
-    registry = hass.data.get(DOMAIN, {}).get("schedule_planning_registry")
-    if registry:
-        await registry.async_sync()
+    await _sync_planning_registry(hass)
     return existed
 
 
@@ -135,6 +140,7 @@ async def async_setup_services(hass: HomeAssistant, storage: ScheduleManagerStor
         )
         storage.add_schedule(schedule)
         await _persist(hass, storage)
+        await _sync_planning_registry(hass)
 
     async def handle_update_schedule(call: ServiceCall) -> None:
         schedule_id = call.data["schedule_id"]
