@@ -358,7 +358,11 @@ async def async_setup_services(hass: HomeAssistant, storage: ScheduleManagerStor
             raise ServiceValidationError(
                 "Aucune plage horaire active à cet instant pour ce planning (ou ce groupe)."
             )
-        await async_run_block_actions(hass, block)
+        ok = await async_run_block_actions(hass, block)
+        if not ok:
+            raise ServiceValidationError(
+                "Les entités ciblées ne sont pas encore disponibles ou un appel de service a échoué."
+            )
 
     hass.services.async_register(DOMAIN, SERVICE_CREATE_SCHEDULE, handle_create_schedule, schema=CREATE_SCHEDULE_SCHEMA)
     hass.services.async_register(DOMAIN, SERVICE_UPDATE_SCHEDULE, handle_update_schedule, schema=UPDATE_SCHEDULE_SCHEMA)

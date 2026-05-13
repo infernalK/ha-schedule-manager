@@ -4,8 +4,9 @@ import logging
 from collections.abc import Callable
 from datetime import datetime, timedelta
 from typing import Optional
-from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.event import async_track_point_in_time
+
+from homeassistant.core import CoreState, HomeAssistant, callback
+from homeassistant.helpers.event import async_call_later, async_track_point_in_time
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.util import dt as dt_util
 
@@ -30,12 +31,23 @@ class ScheduleManagerCoordinator(DataUpdateCoordinator):
         self.engine = ScheduleEngine()
         self._last_executed_slot_key: Optional[str] = None
         self._boundary_unsub: Optional[Callable[[], None]] = None
+        self._deferred_unsub: Optional[Callable[[], None]] = None
 
     def cancel_boundary_watcher(self) -> None:
         """Annule le réveil sur la prochaine transition (déchargement intégration)."""
         if self._boundary_unsub is not None:
             self._boundary_unsub()
             self._boundary_unsub = None
+
+    def cancel_deferred_refresh(self) -> None:
+        """Annule le rafraîchissement différé (entités pas encore prêtes au boot)."""
+        if self._deferred_unsub is not None:
+            self._deferred_unsub()
+            self._deferred_unsub = None
+
+    def cancel_all_watchers(self) -> None:
+        self.cancel_boundary_watcher()
+        self.cancel_deferred_refresh()
 
     def _schedule_boundary_watcher(self, next_when: Optional[datetime]) -> None:
         """Programme un rafraîchissement à la prochaine borne start/end de plage."""
@@ -51,6 +63,23 @@ class ScheduleManagerCoordinator(DataUpdateCoordinator):
             self.hass.async_create_task(self.async_request_refresh())
 
         self._boundary_unsub = async_track_point_in_time(self.hass, _on_boundary, next_when)
+
+    def _schedule_deferred_refresh(self, delay_seconds: int = 90) -> None:
+        """Un seul timer : réessaie après que les entités aient eu le temps de s’enregistrer."""
+        if self._deferred_unsub is not None:
+            return
+
+        @callback
+        def _fire(_now: datetime) -> None:
+            self._deferred_unsub = None
+            self.hass.async_create_task(self.async_request_refresh())
+
+        self._deferred_unsub = async_call_later(self.hass, delay_seconds, _fire)
+        self.logger.debug(
+            "%s: rafraîchissement différé dans %ss (entités / démarrage)",
+            DOMAIN,
+            delay_seconds,
+        )
 
     async def _async_update_data(self):
         """Update data."""
@@ -68,8 +97,19 @@ class ScheduleManagerCoordinator(DataUpdateCoordinator):
 
         if slot_key != self._last_executed_slot_key:
             if slot is not None:
-                await async_run_block_actions(self.hass, slot.block)
-            self._last_executed_slot_key = slot_key
+                if self.hass.state is not CoreState.running:
+                    self.logger.debug(
+                        "%s: cœur HA non « running » — exécution des actions reportée",
+                        DOMAIN,
+                    )
+                else:
+                    ok = await async_run_block_actions(self.hass, slot.block)
+                    if ok:
+                        self._last_executed_slot_key = slot_key
+                    else:
+                        self._schedule_deferred_refresh()
+            else:
+                self._last_executed_slot_key = None
 
         next_wakeup = self.engine.compute_next_schedule_event(groups, schedules, current_time)
 

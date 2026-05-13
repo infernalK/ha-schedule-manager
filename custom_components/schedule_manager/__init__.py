@@ -2,11 +2,13 @@
 
 import logging
 
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.const import Platform
 from homeassistant.helpers.device_registry import DeviceEntry
+from homeassistant.helpers.event import async_call_later
+from homeassistant.helpers.start import async_at_started
 
 from .const import DOMAIN, PLATFORMS
 from .storage import ScheduleManagerStorage
@@ -80,6 +82,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await coordinator.async_config_entry_first_refresh()
     hass.data[DOMAIN]["coordinator"] = coordinator
 
+    @callback
+    def _on_ha_started(_h: HomeAssistant) -> None:
+        """Après démarrage complet : les entités (ex. climate) sont souvent prêtes ~1 min plus tard."""
+
+        @callback
+        def _delayed_refresh(_now) -> None:
+            _h.async_create_task(coordinator.async_request_refresh())
+
+        async_call_later(_h, 75, _delayed_refresh)
+
+    async_at_started(hass, _on_ha_started)
+
     # Set up services
     await async_setup_services(hass, storage)
 
@@ -94,7 +108,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     coordinator = hass.data.get(DOMAIN, {}).get("coordinator")
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if coordinator is not None:
-        coordinator.cancel_boundary_watcher()
+        coordinator.cancel_all_watchers()
     if unload_ok:
         hass.data[DOMAIN].pop("schedule_planning_registry", None)
         hass.data[DOMAIN].pop("storage", None)
