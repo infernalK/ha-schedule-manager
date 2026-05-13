@@ -7,7 +7,7 @@ import voluptuous as vol
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv
-from .models import Override, Schedule, ScheduleGroup, TimeBlock
+from .models import BlockAction, Override, Schedule, ScheduleGroup, TimeBlock
 from .storage import ScheduleManagerStorage
 from .const import DOMAIN
 
@@ -77,13 +77,42 @@ SERVICE_SET_ACTIVE_SCHEDULE = "set_active_schedule"
 SERVICE_SET_OVERRIDE = "set_override"
 SERVICE_CLEAR_OVERRIDE = "clear_override"
 
-TIME_BLOCKS_LIST = vol.All(cv.ensure_list, [vol.Schema({
+_SERVICE_BLOCK_ACTION = vol.Schema({
+    vol.Required("action_type"): cv.string,
+    vol.Required("action_payload"): dict,
+    vol.Optional("id"): cv.string,
+})
+
+
+def _service_nonempty_actions(value: Any) -> Any:
+    if not isinstance(value, list) or len(value) < 1:
+        raise vol.Invalid("actions must be a non-empty list")
+    return value
+
+
+_TIME_BLOCK_LEGACY = vol.Schema({
     vol.Required("start_time"): cv.time,
     vol.Required("end_time"): cv.time,
     vol.Required("action_type"): cv.string,
     vol.Required("action_payload"): dict,
     vol.Optional("id"): cv.string,
-})])
+})
+
+_TIME_BLOCK_WITH_ACTIONS = vol.Schema({
+    vol.Required("start_time"): cv.time,
+    vol.Required("end_time"): cv.time,
+    vol.Required("actions"): vol.All(
+        cv.ensure_list,
+        _service_nonempty_actions,
+        [_SERVICE_BLOCK_ACTION],
+    ),
+    vol.Optional("id"): cv.string,
+})
+
+TIME_BLOCKS_LIST = vol.All(
+    cv.ensure_list,
+    [vol.Any(_TIME_BLOCK_LEGACY, _TIME_BLOCK_WITH_ACTIONS)],
+)
 
 
 def _rewrite_time_block_times_for_cv_time(tb: Any) -> Any:
@@ -168,18 +197,41 @@ CLEAR_OVERRIDE_SCHEMA = vol.Schema({
 })
 
 
+def _block_actions_from_service(tb: dict) -> list[BlockAction]:
+    """Construit la liste d'actions pour une plage (format legacy ou `actions`)."""
+    if "actions" in tb:
+        actions_out: list[BlockAction] = []
+        for a in tb["actions"]:
+            actions_out.append(
+                BlockAction(
+                    action_type=a["action_type"],
+                    action_payload=a["action_payload"],
+                    id=a.get("id") or str(uuid.uuid4()),
+                )
+            )
+        return actions_out
+    return [
+        BlockAction(
+            action_type=tb["action_type"],
+            action_payload=tb["action_payload"],
+            id=str(uuid.uuid4()),
+        )
+    ]
+
+
 def _time_blocks_from_service(blocks_data: list) -> list[TimeBlock]:
     """Build TimeBlock instances from validated service data."""
     blocks: list[TimeBlock] = []
     for tb in blocks_data:
         block_id = tb.get("id") or str(uuid.uuid4())
-        blocks.append(TimeBlock(
-            start_time=tb["start_time"],
-            end_time=tb["end_time"],
-            action_type=tb["action_type"],
-            action_payload=tb["action_payload"],
-            id=block_id,
-        ))
+        blocks.append(
+            TimeBlock(
+                start_time=tb["start_time"],
+                end_time=tb["end_time"],
+                actions=_block_actions_from_service(tb),
+                id=block_id,
+            )
+        )
     return blocks
 
 

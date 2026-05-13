@@ -27,18 +27,48 @@ def time_block_to_dict(block: Optional["TimeBlock"]) -> Optional[Dict[str, Any]]
         "id": block.id,
         "start_time": block.start_time.isoformat(),
         "end_time": block.end_time.isoformat(),
-        "action_type": block.action_type,
-        "action_payload": block.action_payload,
+        "actions": [
+            {
+                "id": a.id,
+                "action_type": a.action_type,
+                "action_payload": a.action_payload,
+            }
+            for a in block.actions
+        ],
     }
 
 
 def time_block_from_dict(data: Dict[str, Any]) -> "TimeBlock":
-    """Deserialize a time block from storage."""
+    """Deserialize a time block from storage (incl. ancien format `action_type` seul)."""
+    raw_actions = data.get("actions")
+    if raw_actions is None:
+        at = data.get("action_type")
+        if at:
+            raw_actions = [
+                {
+                    "action_type": at,
+                    "action_payload": data.get("action_payload", {}),
+                }
+            ]
+        else:
+            raw_actions = []
+    actions: List[BlockAction] = []
+    for a in raw_actions:
+        if not isinstance(a, dict):
+            continue
+        if not a.get("action_type"):
+            continue
+        actions.append(
+            BlockAction(
+                id=a.get("id", str(uuid.uuid4())),
+                action_type=a["action_type"],
+                action_payload=a.get("action_payload", {}),
+            )
+        )
     return TimeBlock(
         start_time=_parse_time(data["start_time"]),
         end_time=_parse_time(data["end_time"]),
-        action_type=data["action_type"],
-        action_payload=data.get("action_payload", {}),
+        actions=actions,
         id=data.get("id", str(uuid.uuid4())),
     )
 
@@ -114,18 +144,28 @@ def override_from_dict(data: Dict[str, Any]) -> "Override":
 
 
 @dataclass
-class TimeBlock:
-    """Represents a time block in a schedule."""
-    start_time: time
-    end_time: time
+class BlockAction:
+    """Une action (service Home Assistant) dans une plage horaire."""
+
     action_type: str
     action_payload: Dict[str, Any]
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
 
 
 @dataclass
+class TimeBlock:
+    """Represents a time block in a schedule."""
+
+    start_time: time
+    end_time: time
+    actions: List[BlockAction] = field(default_factory=list)
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
+
+
+@dataclass
 class Schedule:
     """Represents a schedule."""
+
     name: str
     time_blocks: List[TimeBlock] = field(default_factory=list)
     enabled: bool = True
@@ -136,6 +176,7 @@ class Schedule:
 @dataclass
 class ScheduleGroup:
     """Represents a group of schedules."""
+
     name: str
     schedules: List[str] = field(default_factory=list)  # List of schedule IDs
     exclusive: bool = False  # If true, only one schedule active at a time
@@ -147,6 +188,7 @@ class ScheduleGroup:
 @dataclass
 class Override:
     """Represents a temporary override."""
+
     target_entity: str
     action_type: str
     action_payload: Dict[str, Any]

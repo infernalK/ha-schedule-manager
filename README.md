@@ -43,7 +43,7 @@ Après installation de la [Schedule Manager Card](https://github.com/infernalK/h
 | `schedule_manager.enable_schedule` / `disable_schedule` | Activer / désactiver |
 | `schedule_manager.create_group`, `set_active_schedule`, … | Groupes exclusifs, etc. |
 
-**Exemple YAML (action)** — une plage le matin en mode confort :
+**Exemple YAML** — une plage avec **plusieurs actions** (services Home Assistant) :
 
 ```yaml
 service: schedule_manager.update_schedule
@@ -52,10 +52,17 @@ data:
   time_blocks:
     - start_time: "07:00:00"
       end_time: "09:00:00"
-      action_type: set_preset_mode
-      action_payload:
-        preset_mode: comfort
+      actions:
+        - action_type: climate.set_preset_mode
+          action_payload:
+            entity_id: climate.salon
+            preset_mode: comfort
+        - action_type: light.turn_on
+          action_payload:
+            entity_id: light.cuisine
 ```
+
+L’ancien format avec `action_type` / `action_payload` directement sous la plage est encore accepté ; au chargement il est converti en une entrée dans `actions`.
 
 Les identifiants `schedule_id` sont ceux affichés dans les **attributs** du capteur `schedules` (clés de l’objet).
 

@@ -10,7 +10,9 @@ create_schedule:
         text:
     time_blocks:
       name: Time Blocks
-      description: List of time blocks
+      description: >-
+        Liste de plages. Chaque plage a start_time, end_time et soit « actions » (liste non vide
+        d’objets action_type + action_payload), soit l’ancien format plat action_type + action_payload.
       required: false
       selector:
         object:
@@ -101,7 +103,9 @@ update_schedule:
             - "6"
     time_blocks:
       name: Time Blocks
-      description: Full list of time blocks (replaces existing when set)
+      description: >-
+        Liste complète des plages si vous modifiez les créneaux (remplace l’existant).
+        Chaque plage : start_time, end_time, et actions[] ou l’ancien couple action_type / action_payload.
       required: false
       selector:
         object:
