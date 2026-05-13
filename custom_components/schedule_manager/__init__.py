@@ -82,23 +82,30 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await coordinator.async_config_entry_first_refresh()
     hass.data[DOMAIN]["coordinator"] = coordinator
 
-    @callback
-    def _on_ha_started(_h: HomeAssistant) -> None:
-        """Après démarrage complet : les entités (ex. climate) sont souvent prêtes ~1 min plus tard."""
-
-        @callback
-        def _delayed_refresh(_now) -> None:
-            _h.async_create_task(coordinator.async_refresh())
-
-        async_call_later(_h, 75, _delayed_refresh)
-
-    async_at_started(hass, _on_ha_started)
-
     # Set up services
     await async_setup_services(hass, storage)
 
     # Set up platforms
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    # Le premier cycle a souvent lieu avant l’enregistrement des CoordinatorEntity :
+    # sans listener, l’intervalle 60 s du coordinateur ne part pas (voir DataUpdateCoordinator).
+    # Un second cycle ici relance l’évaluation du créneau une fois le capteur / interrupteurs chargés.
+    await coordinator.async_refresh()
+
+    @callback
+    def _on_ha_started(_h: HomeAssistant) -> None:
+        """HA en état running : rejouer tout de suite le créneau courant, puis secours ~1 min (entités lentes)."""
+
+        _h.async_create_task(coordinator.async_refresh())
+
+        @callback
+        def _delayed_refresh(_now) -> None:
+            _h.async_create_task(coordinator.async_refresh())
+
+        entry.async_on_unload(async_call_later(_h, 75, _delayed_refresh))
+
+    entry.async_on_unload(async_at_started(hass, _on_ha_started))
 
     return True
 
