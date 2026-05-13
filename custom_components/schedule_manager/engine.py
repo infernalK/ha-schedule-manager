@@ -1,12 +1,22 @@
 """Engine for evaluating schedules and determining actions."""
 
 from datetime import datetime, time as dt_time, timedelta
-from typing import Optional, Tuple, Dict
-from .models import Schedule, ScheduleGroup, TimeBlock
+from typing import Optional, Tuple, Dict, Set
+from .models import ActiveTimeSlot, Schedule, ScheduleGroup, TimeBlock
 
 
 class ScheduleEngine:
     """Evaluates schedules to determine current and next actions."""
+
+    @staticmethod
+    def _time_in_block(current_t: dt_time, block: TimeBlock) -> bool:
+        """Plage [début, fin) sur l’horloge ; si fin < début, la plage passe minuit (comme la carte)."""
+        start, end = block.start_time, block.end_time
+        if start < end:
+            return start <= current_t < end
+        if start > end:
+            return current_t >= start or current_t < end
+        return False
 
     @staticmethod
     def get_current_time_block(schedule: Schedule, current_time: datetime) -> Optional[TimeBlock]:
@@ -21,7 +31,7 @@ class ScheduleEngine:
 
         current_t = current_time.time()
         for block in schedule.time_blocks:
-            if block.start_time <= current_t < block.end_time:
+            if ScheduleEngine._time_in_block(current_t, block):
                 return block
         return None
 
@@ -54,24 +64,95 @@ class ScheduleEngine:
         return None
 
     @staticmethod
-    def resolve_group_action(groups: Dict[str, ScheduleGroup], schedules: Dict[str, Schedule], current_time: datetime) -> Optional[TimeBlock]:
-        """Resolve the current action for groups (handling exclusive groups)."""
+    def _schedule_ids_in_enabled_groups(groups: Dict[str, ScheduleGroup]) -> Set[str]:
+        """Plannings référencés par au moins un groupe activé (réservés à la logique groupe)."""
+        out: Set[str] = set()
+        for group in groups.values():
+            if group.enabled:
+                out.update(group.schedules)
+        return out
+
+    @staticmethod
+    def resolve_group_action(
+        groups: Dict[str, ScheduleGroup], schedules: Dict[str, Schedule], current_time: datetime
+    ) -> Optional[ActiveTimeSlot]:
+        """Résout la plage active : groupes d’abord, puis plannings hors groupe (cas carte Lovelace sans groupe)."""
         for group in groups.values():
             if not group.enabled:
                 continue
 
             active_schedules = []
             for sched_id in group.schedules:
-                if sched_id in schedules:
-                    schedule = schedules[sched_id]
-                    if group.exclusive and group.active_schedule != sched_id:
-                        continue
-                    block = ScheduleEngine.get_current_time_block(schedule, current_time)
-                    if block:
-                        active_schedules.append((schedule, block))
+                if sched_id not in schedules:
+                    continue
+                schedule = schedules[sched_id]
+                # Exclusif : si aucun planning actif n’est choisi, on n’exclut personne (sinon tout était ignoré).
+                if (
+                    group.exclusive
+                    and group.active_schedule is not None
+                    and group.active_schedule != sched_id
+                ):
+                    continue
+                block = ScheduleEngine.get_current_time_block(schedule, current_time)
+                if block:
+                    active_schedules.append((sched_id, schedule, block))
 
             if active_schedules:
                 # For now, return the first active block; could implement priority later
-                return active_schedules[0][1]
+                sid, _sch, blk = active_schedules[0]
+                return ActiveTimeSlot(schedule_id=sid, block=blk)
+
+        # Aucun groupe actif ne couvre l’instant : évaluer les plannings non rattachés à un groupe activé.
+        blocked_ids = ScheduleEngine._schedule_ids_in_enabled_groups(groups)
+        for sid, schedule in schedules.items():
+            if sid in blocked_ids:
+                continue
+            block = ScheduleEngine.get_current_time_block(schedule, current_time)
+            if block:
+                return ActiveTimeSlot(schedule_id=sid, block=block)
 
         return None
+
+    @staticmethod
+    def compute_next_schedule_event(
+        groups: Dict[str, ScheduleGroup],
+        schedules: Dict[str, Schedule],
+        now: datetime,
+    ) -> Optional[datetime]:
+        """Prochain instant où une plage peut commencer ou se terminer (tous plannings activés).
+
+        Inspiré de l’attribut ``next_trigger`` du scheduler-component : permet un réveil ponctuel
+        au lieu de ne compter que sur l’intervalle du coordonnateur.
+        ``groups`` est réservé à une future restriction ; aujourd’hui tous les plannings activés
+        contribuent aux bornes temporelles.
+        """
+        _ = groups  # extension future (p. ex. ignorer plannings exclus)
+        tzinfo = now.tzinfo
+        if tzinfo is None:
+            raise ValueError("now must be timezone-aware")
+
+        best: Optional[datetime] = None
+
+        def consider(candidate: datetime) -> None:
+            nonlocal best
+            if candidate <= now:
+                return
+            if best is None or candidate < best:
+                best = candidate
+
+        for _sid, sch in schedules.items():
+            if not sch.enabled:
+                continue
+            for day_offset in range(0, 8):
+                day = now.date() + timedelta(days=day_offset)
+                if day.weekday() not in sch.repeat_days:
+                    continue
+                for block in sch.time_blocks:
+                    st = block.start_time
+                    et = block.end_time
+                    consider(datetime.combine(day, st, tzinfo=tzinfo))
+                    if st < et:
+                        consider(datetime.combine(day, et, tzinfo=tzinfo))
+                    elif st > et:
+                        consider(datetime.combine(day + timedelta(days=1), et, tzinfo=tzinfo))
+        return best

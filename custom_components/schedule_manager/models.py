@@ -163,6 +163,14 @@ class TimeBlock:
 
 
 @dataclass
+class ActiveTimeSlot:
+    """Créneau actuellement actif, avec l’identifiant du planning source (exécution des actions)."""
+
+    schedule_id: str
+    block: TimeBlock
+
+
+@dataclass
 class Schedule:
     """Represents a schedule."""
 

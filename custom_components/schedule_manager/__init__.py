@@ -91,7 +91,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
+    coordinator = hass.data.get(DOMAIN, {}).get("coordinator")
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    if coordinator is not None:
+        coordinator.cancel_boundary_watcher()
     if unload_ok:
         hass.data[DOMAIN].pop("schedule_planning_registry", None)
         hass.data[DOMAIN].pop("storage", None)

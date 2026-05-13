@@ -215,3 +215,17 @@ clear_override:
       required: true
       selector:
         text:
+
+run_actions:
+  name: Run actions
+  description: >-
+    Exécute immédiatement les actions de la plage horaire active (comme scheduler.run_action).
+    Sans schedule_id : plage résolue globalement (groupes + plannings orphelins).
+    Avec schedule_id : plage active pour ce planning uniquement.
+  fields:
+    schedule_id:
+      name: Schedule ID
+      description: Identifiant du planning (optionnel si un seul planning ou pour forcer un planning)
+      required: false
+      selector:
+        text:

@@ -59,10 +59,18 @@ class ScheduleManagerSensor(CoordinatorEntity, SensorEntity):
         schedules = storage.get_schedules()
         groups = storage.get_groups()
         current = None
+        active_schedule_id = None
         if self.coordinator.data:
             current = self.coordinator.data.get("current_time_block")
+            slot = self.coordinator.data.get("active_time_slot")
+            if slot is not None:
+                active_schedule_id = slot.schedule_id
         return {
             "schedules": {sid: schedule_to_dict(s) for sid, s in schedules.items()},
             "groups": {gid: group_to_dict(g) for gid, g in groups.items()},
+            "active_schedule_id": active_schedule_id,
+            "next_trigger": self.coordinator.data.get("next_trigger")
+            if self.coordinator.data
+            else None,
             "current_time_block": time_block_to_dict(current) if current else None,
         }

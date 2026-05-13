@@ -5,8 +5,12 @@ from typing import Any
 
 import voluptuous as vol
 from homeassistant.core import HomeAssistant, ServiceCall
-from homeassistant.exceptions import HomeAssistantError
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import config_validation as cv
+from homeassistant.util import dt as dt_util
+
+from .action_executor import async_run_block_actions
+from .engine import ScheduleEngine
 from .models import BlockAction, Override, Schedule, ScheduleGroup, TimeBlock
 from .storage import ScheduleManagerStorage
 from .const import DOMAIN
@@ -76,6 +80,7 @@ SERVICE_SET_ACTIVE_SCHEDULE = "set_active_schedule"
 
 SERVICE_SET_OVERRIDE = "set_override"
 SERVICE_CLEAR_OVERRIDE = "clear_override"
+SERVICE_RUN_ACTIONS = "run_actions"
 
 _SERVICE_BLOCK_ACTION = vol.Schema({
     vol.Required("action_type"): cv.string,
@@ -194,6 +199,10 @@ SET_OVERRIDE_SCHEMA = vol.Schema({
 
 CLEAR_OVERRIDE_SCHEMA = vol.Schema({
     vol.Required("override_id"): cv.string,
+})
+
+RUN_ACTIONS_SCHEMA = vol.Schema({
+    vol.Optional("schedule_id"): cv.string,
 })
 
 
@@ -329,6 +338,28 @@ async def async_setup_services(hass: HomeAssistant, storage: ScheduleManagerStor
         storage.remove_override(override_id)
         await _persist(hass, storage)
 
+    async def handle_run_actions(call: ServiceCall) -> None:
+        """Déclenche les actions de la plage active (comme scheduler.run_action)."""
+        schedules = storage.get_schedules()
+        groups = storage.get_groups()
+        engine = ScheduleEngine()
+        at = dt_util.now()
+        sid = call.data.get("schedule_id")
+        block = None
+        if sid:
+            sch = schedules.get(sid)
+            if sch is None:
+                raise ServiceValidationError(f"Planning inconnu : {sid}")
+            block = engine.get_current_time_block(sch, at)
+        else:
+            slot = engine.resolve_group_action(groups, schedules, at)
+            block = slot.block if slot else None
+        if block is None:
+            raise ServiceValidationError(
+                "Aucune plage horaire active à cet instant pour ce planning (ou ce groupe)."
+            )
+        await async_run_block_actions(hass, block)
+
     hass.services.async_register(DOMAIN, SERVICE_CREATE_SCHEDULE, handle_create_schedule, schema=CREATE_SCHEDULE_SCHEMA)
     hass.services.async_register(DOMAIN, SERVICE_UPDATE_SCHEDULE, handle_update_schedule, schema=UPDATE_SCHEDULE_SCHEMA)
     hass.services.async_register(DOMAIN, SERVICE_ENABLE_SCHEDULE, handle_enable_schedule, schema=ENABLE_DISABLE_SCHEMA)
@@ -340,3 +371,4 @@ async def async_setup_services(hass: HomeAssistant, storage: ScheduleManagerStor
     hass.services.async_register(DOMAIN, SERVICE_SET_ACTIVE_SCHEDULE, handle_set_active_schedule, schema=SET_ACTIVE_SCHEMA)
     hass.services.async_register(DOMAIN, SERVICE_SET_OVERRIDE, handle_set_override, schema=SET_OVERRIDE_SCHEMA)
     hass.services.async_register(DOMAIN, SERVICE_CLEAR_OVERRIDE, handle_clear_override, schema=CLEAR_OVERRIDE_SCHEMA)
+    hass.services.async_register(DOMAIN, SERVICE_RUN_ACTIONS, handle_run_actions, schema=RUN_ACTIONS_SCHEMA)
