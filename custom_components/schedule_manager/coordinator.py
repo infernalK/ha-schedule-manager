@@ -70,6 +70,34 @@ class ScheduleManagerCoordinator(DataUpdateCoordinator):
         """
         self._last_executed_slot_key = None
 
+    async def async_notify_schedule_enabled(self, schedule_id: str) -> None:
+        """Après activation d’un planning : applique les actions du créneau courant pour ce planning.
+
+        `resolve_group_action` ne retourne qu’une seule plage à la fois ; un autre planning
+        peut donc « gagner » alors que celui qu’on vient d’activer est aussi dans une plage
+        valide. On exécute ici le créneau de *ce* planning si ce n’est pas déjà le dernier
+        créneau exécuté (évite les doublons quand `async_refresh` a déjà tout fait).
+        """
+        current_time = dt_util.now()
+        schedules = self.storage.get_schedules()
+        sch = schedules.get(schedule_id)
+        if not sch or not sch.enabled:
+            return
+        block = self.engine.get_current_time_block(sch, current_time)
+        if block is None:
+            return
+        slot_key = (
+            f"{schedule_id}:{block.start_time.isoformat()}:"
+            f"{block.end_time.isoformat()}:{_fingerprint_block_actions(block)}"
+        )
+        if slot_key == self._last_executed_slot_key:
+            return
+        if not self.hass.is_running:
+            return
+        ok = await async_run_block_actions(self.hass, block)
+        if ok:
+            self._last_executed_slot_key = slot_key
+
     def _schedule_boundary_watcher(self, next_when: Optional[datetime]) -> None:
         """Programme un rafraîchissement à la prochaine borne start/end de plage."""
         self.cancel_boundary_watcher()

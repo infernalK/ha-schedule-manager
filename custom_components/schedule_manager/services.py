@@ -277,9 +277,11 @@ async def async_setup_services(hass: HomeAssistant, storage: ScheduleManagerStor
             )
         sch = schedules[schedule_id]
         invalidate = False
+        enabled_turned_on = False
         if "name" in call.data:
             sch.name = call.data["name"]
         if "enabled" in call.data:
+            enabled_turned_on = not sch.enabled and bool(call.data["enabled"])
             sch.enabled = call.data["enabled"]
             invalidate = True
         if "repeat_days" in call.data:
@@ -291,6 +293,10 @@ async def async_setup_services(hass: HomeAssistant, storage: ScheduleManagerStor
         if invalidate:
             _invalidate_coordinator_slot_marker(hass)
         await _persist(hass, storage)
+        if enabled_turned_on:
+            coord = hass.data.get(DOMAIN, {}).get("coordinator")
+            if coord is not None:
+                await coord.async_notify_schedule_enabled(schedule_id)
 
     async def handle_enable_schedule(call: ServiceCall) -> None:
         schedule_id = call.data["schedule_id"]
@@ -299,6 +305,9 @@ async def async_setup_services(hass: HomeAssistant, storage: ScheduleManagerStor
             schedules[schedule_id].enabled = True
             _invalidate_coordinator_slot_marker(hass)
             await _persist(hass, storage)
+            coord = hass.data.get(DOMAIN, {}).get("coordinator")
+            if coord is not None:
+                await coord.async_notify_schedule_enabled(schedule_id)
 
     async def handle_disable_schedule(call: ServiceCall) -> None:
         schedule_id = call.data["schedule_id"]

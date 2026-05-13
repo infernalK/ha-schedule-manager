@@ -62,6 +62,7 @@ class SchedulePlanningSwitchEntity(CoordinatorEntity, SwitchEntity):
         schedules[self._schedule_id].enabled = True
         _invalidate_coordinator_slot_marker(self.coordinator.hass)
         await async_persist(self.coordinator.hass, self.coordinator.storage)
+        await self.coordinator.async_notify_schedule_enabled(self._schedule_id)
 
     async def async_turn_off(self, **kwargs) -> None:
         schedules = self.coordinator.storage.get_schedules()
