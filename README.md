@@ -14,6 +14,8 @@ Pour un lien « Ajouter à HACS » depuis la doc : [générer un lien my.home-as
 
 **Marques (brands)** : pour figurer dans le catalogue HACS par défaut et les icônes dans l’UI, il faut une PR sur [home-assistant/brands](https://github.com/home-assistant/brands) (`custom_integrations/schedule_manager/`). Tant que ce n’est pas fusionné, la CI du dépôt ignore volontairement la vérification `brands` (voir `.github/workflows/ci.yml`).
 
+**Description et topics GitHub** : sur la page du dépôt, **About** (roue dentée) → renseigner une courte description (ex. *Intégration Home Assistant : plannings à créneaux et actions*) et des topics (`home-assistant`, `hacs`, `integration`, `schedule`, etc.). Cela satisfait aussi le validateur HACS ; vous pouvez alors retirer `topics` et `description` de `ignore` dans `.github/workflows/ci.yml`.
+
 ### Manuellement
 
 1. Copiez `custom_components/schedule_manager` dans le dossier `custom_components` de Home Assistant.

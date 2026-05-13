@@ -16,10 +16,11 @@ jobs:
       - uses: actions/checkout@v4
       - name: Hassfest validation
         uses: home-assistant/actions/hassfest@master
-      # Même validateur que HACS. Retirer `ignore: brands` après fusion d’une PR sur
-      # https://github.com/home-assistant/brands (dossier custom_integrations/schedule_manager).
+      # Même validateur que HACS.
+      # - brands : retirer après PR https://github.com/home-assistant/brands (custom_integrations/schedule_manager)
+      # - topics, description : à remplir sur GitHub → About du dépôt ; retirer du ignore ensuite
       - name: Validation HACS
         uses: hacs/action@main
         with:
           category: integration
-          ignore: brands
+          ignore: brands topics description
