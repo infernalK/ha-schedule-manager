@@ -45,11 +45,10 @@
   },
   "device": {
     "hub": {
-      "name": "Schedule Manager",
-      "model": "Hub"
+      "name": "Schedule Manager"
     },
     "planning_device": {
-      "model": "Schedule"
+      "name": "Schedule"
     }
   },
   "entity": {
