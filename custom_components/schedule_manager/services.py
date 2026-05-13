@@ -28,7 +28,9 @@ async def _persist(hass: HomeAssistant, storage: ScheduleManagerStorage) -> None
     await storage.async_save()
     coordinator = hass.data.get(DOMAIN, {}).get("coordinator")
     if coordinator:
-        await coordinator.async_request_refresh()
+        # `async_request_refresh` est débouncé dans HA — après sauvegarde il faut un cycle
+        # immédiat pour rejouer les actions de la plage courante sans attendre.
+        await coordinator.async_refresh()
 
 
 async def async_persist(hass: HomeAssistant, storage: ScheduleManagerStorage) -> None:

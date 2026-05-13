@@ -1,5 +1,7 @@
 """Data coordinator for Schedule Manager."""
 
+import hashlib
+import json
 import logging
 from collections.abc import Callable
 from datetime import datetime, timedelta
@@ -13,7 +15,18 @@ from homeassistant.util import dt as dt_util
 from .action_executor import async_run_block_actions
 from .const import DOMAIN
 from .engine import ScheduleEngine
+from .models import TimeBlock
 from .storage import ScheduleManagerStorage
+
+
+def _fingerprint_block_actions(block: TimeBlock) -> str:
+    """Empreinte stable des actions : la clé de créneau change si seules les actions changent."""
+    payload = [
+        {"t": (a.action_type or "").strip(), "p": a.action_payload or {}}
+        for a in block.actions
+    ]
+    raw = json.dumps(payload, sort_keys=True, default=str)
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
 
 
 class ScheduleManagerCoordinator(DataUpdateCoordinator):
@@ -50,10 +63,10 @@ class ScheduleManagerCoordinator(DataUpdateCoordinator):
         self.cancel_deferred_refresh()
 
     def reset_executed_slot_marker(self) -> None:
-        """Après modification du stockage (plages, jours, activé) : rejouer la plage si elle est toujours active.
+        """Après modification du stockage : rejouer la plage si elle est toujours active.
 
-        Sans cela, la clé (planning + horaires) ne change pas quand seules les actions changent — les
-        nouveaux services ne sont pas appelés tant que la plage ne se rouvre pas.
+        La clé de créneau inclut une empreinte des actions ; ce reset couvre les cas où
+        l’état mémoire du coordinateur doit être forcé (ex. chemins sans recalcul immédiat).
         """
         self._last_executed_slot_key = None
 
@@ -98,7 +111,8 @@ class ScheduleManagerCoordinator(DataUpdateCoordinator):
         slot = self.engine.resolve_group_action(groups, schedules, current_time)
         current_block = slot.block if slot else None
         slot_key = (
-            f"{slot.schedule_id}:{slot.block.start_time.isoformat()}:{slot.block.end_time.isoformat()}"
+            f"{slot.schedule_id}:{slot.block.start_time.isoformat()}:"
+            f"{slot.block.end_time.isoformat()}:{_fingerprint_block_actions(slot.block)}"
             if slot
             else None
         )
