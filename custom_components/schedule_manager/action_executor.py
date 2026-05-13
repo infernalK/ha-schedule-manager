@@ -16,13 +16,17 @@ if TYPE_CHECKING:
 
 
 def _iter_entity_ids_from_payload(payload: dict) -> list[str]:
-    """Extrait les entity_id d’un payload de service (chaîne ou liste)."""
+    """Extrait les entity_id d’un payload de service (racine ou sous-clé ``target``)."""
+    out: list[str] = []
     raw = payload.get("entity_id")
     if isinstance(raw, str) and "." in raw:
-        return [raw]
-    if isinstance(raw, list):
-        return [str(x) for x in raw if isinstance(x, str) and "." in x]
-    return []
+        out.append(raw)
+    elif isinstance(raw, list):
+        out.extend(str(x) for x in raw if isinstance(x, str) and "." in x)
+    nested = payload.get("target")
+    if isinstance(nested, dict):
+        out.extend(_iter_entity_ids_from_payload(nested))
+    return out
 
 
 def block_target_entities_ready(hass: HomeAssistant, block: "TimeBlock") -> bool:
@@ -60,6 +64,7 @@ async def async_run_block_actions(hass: HomeAssistant, block: "TimeBlock") -> bo
         n,
         block.id,
     )
+    invoked = 0
     for action in block.actions:
         raw = (action.action_type or "").strip()
         if not raw or "." not in raw:
@@ -85,6 +90,7 @@ async def async_run_block_actions(hass: HomeAssistant, block: "TimeBlock") -> bo
                 block.id,
             )
             await hass.services.async_call(domain, service, payload, blocking=False)
+            invoked += 1
         except Exception as err:  # noqa: BLE001
             _LOGGER.error(
                 "%s: échec %s.%s (%s) — %s",
@@ -95,4 +101,11 @@ async def async_run_block_actions(hass: HomeAssistant, block: "TimeBlock") -> bo
                 err,
             )
             return False
+    if invoked == 0:
+        _LOGGER.error(
+            "%s: aucun appel de service effectué pour la plage %s (vérifiez action_type domaine.service)",
+            DOMAIN,
+            block.id,
+        )
+        return False
     return True

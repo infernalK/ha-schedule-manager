@@ -88,7 +88,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         @callback
         def _delayed_refresh(_now) -> None:
-            _h.async_create_task(coordinator.async_request_refresh())
+            _h.async_create_task(coordinator.async_refresh())
 
         async_call_later(_h, 75, _delayed_refresh)
 

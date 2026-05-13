@@ -7,7 +7,7 @@ from collections.abc import Callable
 from datetime import datetime, timedelta
 from typing import Optional
 
-from homeassistant.core import CoreState, HomeAssistant, callback
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.event import async_call_later, async_track_point_in_time
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.util import dt as dt_util
@@ -81,7 +81,8 @@ class ScheduleManagerCoordinator(DataUpdateCoordinator):
 
         @callback
         def _on_boundary(_now) -> None:
-            self.hass.async_create_task(self.async_request_refresh())
+            # Éviter async_request_refresh : il est débouncé et peut retarder ou fusionner les bords de plage.
+            self.hass.async_create_task(self.async_refresh())
 
         self._boundary_unsub = async_track_point_in_time(self.hass, _on_boundary, next_when)
 
@@ -93,7 +94,7 @@ class ScheduleManagerCoordinator(DataUpdateCoordinator):
         @callback
         def _fire(_now: datetime) -> None:
             self._deferred_unsub = None
-            self.hass.async_create_task(self.async_request_refresh())
+            self.hass.async_create_task(self.async_refresh())
 
         self._deferred_unsub = async_call_later(self.hass, delay_seconds, _fire)
         self.logger.debug(
@@ -119,9 +120,11 @@ class ScheduleManagerCoordinator(DataUpdateCoordinator):
 
         if slot_key != self._last_executed_slot_key:
             if slot is not None:
-                if self.hass.state is not CoreState.running:
+                # Ne pas exiger CoreState.running : pendant le boot HA est souvent en « starting »
+                # alors que hass.is_running est déjà True — sinon aucune action au premier cycle ni au redémarrage.
+                if not self.hass.is_running:
                     self.logger.debug(
-                        "%s: cœur HA non « running » — exécution des actions reportée",
+                        "%s: Home Assistant pas encore prêt (is_running=False) — exécution des actions reportée",
                         DOMAIN,
                     )
                 else:
