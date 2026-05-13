@@ -13,7 +13,11 @@ from homeassistant.core import callback
 
 from .const import DOMAIN
 from .models import Schedule
-from .services import async_persist, async_sync_planning_entities
+from .services import (
+    _invalidate_coordinator_slot_marker,
+    async_persist,
+    async_sync_planning_entities,
+)
 
 
 class ScheduleManagerConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -111,6 +115,7 @@ class ScheduleManagerOptionsFlow(OptionsFlow):
 
             schedule = Schedule(name=name)
             storage.add_schedule(schedule)
+            _invalidate_coordinator_slot_marker(self.hass)
             await async_persist(self.hass, storage)
             await async_sync_planning_entities(self.hass)
 

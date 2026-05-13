@@ -49,6 +49,14 @@ class ScheduleManagerCoordinator(DataUpdateCoordinator):
         self.cancel_boundary_watcher()
         self.cancel_deferred_refresh()
 
+    def reset_executed_slot_marker(self) -> None:
+        """Après modification du stockage (plages, jours, activé) : rejouer la plage si elle est toujours active.
+
+        Sans cela, la clé (planning + horaires) ne change pas quand seules les actions changent — les
+        nouveaux services ne sont pas appelés tant que la plage ne se rouvre pas.
+        """
+        self._last_executed_slot_key = None
+
     def _schedule_boundary_watcher(self, next_when: Optional[datetime]) -> None:
         """Programme un rafraîchissement à la prochaine borne start/end de plage."""
         self.cancel_boundary_watcher()

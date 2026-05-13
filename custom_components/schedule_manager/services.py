@@ -16,6 +16,13 @@ from .storage import ScheduleManagerStorage
 from .const import DOMAIN
 
 
+def _invalidate_coordinator_slot_marker(hass: HomeAssistant) -> None:
+    """Permet de rejouer les actions de la plage courante après changement de stockage."""
+    coord = hass.data.get(DOMAIN, {}).get("coordinator")
+    if coord is not None:
+        coord.reset_executed_slot_marker()
+
+
 async def _persist(hass: HomeAssistant, storage: ScheduleManagerStorage) -> None:
     """Persist storage and refresh coordinator so entities/cards update."""
     await storage.async_save()
@@ -62,6 +69,7 @@ async def async_delete_schedule(
     storage.detach_schedule_from_groups(schedule_id)
     if existed:
         storage.remove_schedule(schedule_id)
+    _invalidate_coordinator_slot_marker(hass)
     await async_persist(hass, storage)
     await _sync_planning_registry(hass)
     return existed
@@ -254,6 +262,7 @@ async def async_setup_services(hass: HomeAssistant, storage: ScheduleManagerStor
             repeat_days=call.data.get("repeat_days", list(range(7))),
         )
         storage.add_schedule(schedule)
+        _invalidate_coordinator_slot_marker(hass)
         await _persist(hass, storage)
         await _sync_planning_registry(hass)
 
@@ -261,16 +270,24 @@ async def async_setup_services(hass: HomeAssistant, storage: ScheduleManagerStor
         schedule_id = call.data["schedule_id"]
         schedules = storage.get_schedules()
         if schedule_id not in schedules:
-            return
+            raise ServiceValidationError(
+                f"Planning inconnu : {schedule_id}. Vérifiez l'UUID (attribut schedules du capteur)."
+            )
         sch = schedules[schedule_id]
+        invalidate = False
         if "name" in call.data:
             sch.name = call.data["name"]
         if "enabled" in call.data:
             sch.enabled = call.data["enabled"]
+            invalidate = True
         if "repeat_days" in call.data:
             sch.repeat_days = call.data["repeat_days"]
+            invalidate = True
         if "time_blocks" in call.data:
             sch.time_blocks = _time_blocks_from_service(call.data["time_blocks"])
+            invalidate = True
+        if invalidate:
+            _invalidate_coordinator_slot_marker(hass)
         await _persist(hass, storage)
 
     async def handle_enable_schedule(call: ServiceCall) -> None:
@@ -278,6 +295,7 @@ async def async_setup_services(hass: HomeAssistant, storage: ScheduleManagerStor
         schedules = storage.get_schedules()
         if schedule_id in schedules:
             schedules[schedule_id].enabled = True
+            _invalidate_coordinator_slot_marker(hass)
             await _persist(hass, storage)
 
     async def handle_disable_schedule(call: ServiceCall) -> None:
@@ -285,6 +303,7 @@ async def async_setup_services(hass: HomeAssistant, storage: ScheduleManagerStor
         schedules = storage.get_schedules()
         if schedule_id in schedules:
             schedules[schedule_id].enabled = False
+            _invalidate_coordinator_slot_marker(hass)
             await _persist(hass, storage)
 
     async def handle_delete_schedule(call: ServiceCall) -> None:
