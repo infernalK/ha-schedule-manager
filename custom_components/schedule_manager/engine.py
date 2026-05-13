@@ -30,10 +30,15 @@ class ScheduleEngine:
             return None
 
         current_t = current_time.time()
-        for block in schedule.time_blocks:
-            if ScheduleEngine._time_in_block(current_t, block):
-                return block
-        return None
+        # Plusieurs plages peuvent théoriquement chevaucher (données héritées, ordre JSON variable).
+        # Le créneau « actif » sur la frise = celui qui a commencé le plus tard tout en couvrant l’instant.
+        matches = [b for b in schedule.time_blocks if ScheduleEngine._time_in_block(current_t, b)]
+        if not matches:
+            return None
+        latest_start = max(b.start_time for b in matches)
+        contenders = [b for b in matches if b.start_time == latest_start]
+        # Même heure de début (doublon) : dernier dans la liste = surcharge côté carte.
+        return contenders[-1]
 
     @staticmethod
     def get_next_time_block(schedule: Schedule, current_time: datetime) -> Optional[Tuple[TimeBlock, datetime]]:
@@ -98,20 +103,32 @@ class ScheduleEngine:
                     active_schedules.append((sched_id, schedule, block))
 
             if active_schedules:
-                # For now, return the first active block; could implement priority later
-                sid, _sch, blk = active_schedules[0]
+                # Priorité : début de plage le plus tardif, puis ordre dans le groupe (dernier = plus prioritaire à égalité).
+                def _group_slot_priority(t: tuple[str, Schedule, TimeBlock]) -> tuple:
+                    sid, _sch, blk = t
+                    try:
+                        ord_idx = group.schedules.index(sid)
+                    except ValueError:
+                        ord_idx = -1
+                    return (blk.start_time, ord_idx)
+
+                sid, _sch, blk = max(active_schedules, key=_group_slot_priority)
                 return ActiveTimeSlot(schedule_id=sid, block=blk)
 
         # Aucun groupe actif ne couvre l’instant : évaluer les plannings non rattachés à un groupe activé.
         blocked_ids = ScheduleEngine._schedule_ids_in_enabled_groups(groups)
-        for sid, schedule in schedules.items():
+        candidates: list[tuple[ActiveTimeSlot, int]] = []
+        for i, (sid, schedule) in enumerate(schedules.items()):
             if sid in blocked_ids:
                 continue
             block = ScheduleEngine.get_current_time_block(schedule, current_time)
             if block:
-                return ActiveTimeSlot(schedule_id=sid, block=block)
-
-        return None
+                candidates.append(
+                    (ActiveTimeSlot(schedule_id=sid, block=block), i)
+                )
+        if not candidates:
+            return None
+        return max(candidates, key=lambda x: (x[0].block.start_time, x[1]))[0]
 
     @staticmethod
     def compute_next_schedule_event(

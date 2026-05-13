@@ -109,3 +109,58 @@ def test_compute_next_schedule_event():
     assert now.weekday() == 2
     nxt = ScheduleEngine.compute_next_schedule_event({}, schedules, now)
     assert nxt == datetime(2026, 5, 13, 17, 0, 0, tzinfo=timezone.utc)
+
+
+def test_get_current_time_block_max_start_wins_on_overlap():
+    """Chevauchement : le créneau actif = début le plus tardif (indépendant de l’ordre en JSON)."""
+    b_wide = TimeBlock(
+        time(8, 0),
+        time(14, 0),
+        [BlockAction("light.turn_on", {}, id="a1")],
+        id="wide",
+    )
+    b_narrow = TimeBlock(
+        time(10, 0),
+        time(12, 0),
+        [BlockAction("switch.turn_on", {}, id="a2")],
+        id="narrow",
+    )
+    now = datetime(2026, 5, 13, 11, 0, 0)
+    sch_wide_first = _sch("x", [b_wide, b_narrow])
+    assert ScheduleEngine.get_current_time_block(sch_wide_first, now) == b_narrow
+    sch_narrow_first = _sch("x", [b_narrow, b_wide])
+    assert ScheduleEngine.get_current_time_block(sch_narrow_first, now) == b_narrow
+
+
+def test_resolve_group_latest_start_wins():
+    """Plusieurs plannings actifs dans un groupe : début de plage le plus tardif gagne."""
+    wide = TimeBlock(
+        time(8, 0),
+        time(17, 0),
+        [BlockAction("light.turn_on", {}, id="w")],
+        id="bw",
+    )
+    narrow = TimeBlock(
+        time(10, 0),
+        time(12, 0),
+        [BlockAction("switch.turn_on", {}, id="n")],
+        id="bn",
+    )
+    schedules = {
+        "wide": _sch("wide", [wide]),
+        "narrow": _sch("narrow", [narrow]),
+    }
+    groups = {
+        "g1": ScheduleGroup(
+            name="G",
+            id="g1",
+            schedules=["wide", "narrow"],
+            exclusive=False,
+            active_schedule=None,
+        )
+    }
+    now = datetime(2026, 5, 13, 11, 0, 0)
+    slot = ScheduleEngine.resolve_group_action(groups, schedules, now)
+    assert slot is not None
+    assert slot.schedule_id == "narrow"
+    assert slot.block.id == "bn"

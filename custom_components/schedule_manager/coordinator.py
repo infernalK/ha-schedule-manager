@@ -28,7 +28,11 @@ _BOUNDARY_EVAL_SNAP: contextvars.ContextVar[Optional[datetime]] = contextvars.Co
 def _fingerprint_block_actions(block: TimeBlock) -> str:
     """Empreinte stable des actions : la clé de créneau change si seules les actions changent."""
     payload = [
-        {"t": (a.action_type or "").strip(), "p": a.action_payload or {}}
+        {
+            "id": (a.id or "").strip(),
+            "t": (a.action_type or "").strip(),
+            "p": a.action_payload or {},
+        }
         for a in block.actions
     ]
     raw = json.dumps(payload, sort_keys=True, default=str)
@@ -159,7 +163,7 @@ class ScheduleManagerCoordinator(DataUpdateCoordinator):
             # Si « maintenant » est encore un soupçon avant l’instant de borne du timer,
             # l’ancien créneau peut encore matcher — on aligne sur la borne programmée (≤ 2 s).
             skew_sec = (planned - current_time).total_seconds()
-            if 0 < skew_sec <= 2.0:
+            if 0 < skew_sec <= 5.0:
                 current_time = planned
         schedules = self.storage.get_schedules()
         groups = self.storage.get_groups()
