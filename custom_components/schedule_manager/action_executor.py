@@ -7,12 +7,17 @@ from typing import TYPE_CHECKING
 
 from homeassistant.core import HomeAssistant
 
-from .const import DOMAIN
+from .const import ACTION_PAYLOAD_META_KEYS, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from .models import TimeBlock
+
+
+def _payload_for_service_call(payload: dict) -> dict:
+    """Copie du payload sans métadonnées carte (ex. couleur) interdites par les schémas HA."""
+    return {k: v for k, v in payload.items() if k not in ACTION_PAYLOAD_META_KEYS}
 
 
 def _iter_entity_ids_from_payload(payload: dict) -> list[str]:
@@ -80,7 +85,8 @@ async def async_run_block_actions(hass: HomeAssistant, block: "TimeBlock") -> bo
                 "%s: action ignorée (domaine ou service vide: %r)", DOMAIN, action.action_type
             )
             continue
-        payload = dict(action.action_payload) if action.action_payload else {}
+        raw_payload = dict(action.action_payload) if action.action_payload else {}
+        payload = _payload_for_service_call(raw_payload)
         try:
             _LOGGER.debug(
                 "%s: appel service %s.%s (plage %s)",
