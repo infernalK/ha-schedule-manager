@@ -4,6 +4,18 @@ Intégration Home Assistant pour des plannings à créneaux et actions (ex. clim
 
 ## Installation
 
+### Avec HACS (recommandé)
+
+1. [HACS](https://hacs.xyz/) installé : **HACS → Intégrations personnalisées** (menu ⋮) → **Dépôt personnalisé** → URL `https://github.com/infernalK/ha-schedule-manager`, catégorie **Intégration** → **Ajouter**.
+2. **Télécharger** le dépôt, puis redémarrer Home Assistant si demandé.
+3. **Paramètres → Appareils et services → Ajouter une intégration** → *Schedule Manager*.
+
+Pour un lien « Ajouter à HACS » depuis la doc : [générer un lien my.home-assistant.io](https://my.home-assistant.io/create-link/?redirect=hacs_repository) avec l’URL du dépôt ci-dessus.
+
+**Marques (brands)** : pour figurer dans le catalogue HACS par défaut et les icônes dans l’UI, il faut une PR sur [home-assistant/brands](https://github.com/home-assistant/brands) (`custom_integrations/schedule_manager/`). Tant que ce n’est pas fusionné, la CI du dépôt ignore volontairement la vérification `brands` (voir `.github/workflows/ci.yml`).
+
+### Manuellement
+
 1. Copiez `custom_components/schedule_manager` dans le dossier `custom_components` de Home Assistant.
 2. Redémarrez Home Assistant.
 3. **Paramètres → Appareils et services → Ajouter une intégration** → recherchez *Schedule Manager*.

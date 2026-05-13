@@ -1,10 +1,10 @@
 {
   "domain": "schedule_manager",
   "name": "Schedule Manager",
-  "codeowners": ["@yourusername"],
+  "codeowners": ["@infernalK"],
   "config_flow": true,
-  "documentation": "https://github.com/yourusername/ha-schedule-manager",
-  "issue_tracker": "https://github.com/yourusername/ha-schedule-manager/issues",
+  "documentation": "https://github.com/infernalK/ha-schedule-manager",
+  "issue_tracker": "https://github.com/infernalK/ha-schedule-manager/issues",
   "requirements": [],
   "ssdp": [],
   "zeroconf": [],

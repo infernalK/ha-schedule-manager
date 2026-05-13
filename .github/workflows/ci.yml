@@ -2,16 +2,24 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: "0 0 * * *"
 
 jobs:
   validate:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
-    - name: Hassfest validation
-      uses: home-assistant/actions/hassfest@master
-    - name: HACF validation
-      uses: home-assistant/actions/hacs@master
+      - uses: actions/checkout@v4
+      - name: Hassfest validation
+        uses: home-assistant/actions/hassfest@master
+      # Même validateur que HACS. Retirer `ignore: brands` après fusion d’une PR sur
+      # https://github.com/home-assistant/brands (dossier custom_integrations/schedule_manager).
+      - name: Validation HACS
+        uses: hacs/action@main
+        with:
+          category: integration
+          ignore: brands
