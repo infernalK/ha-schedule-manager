@@ -1,5 +1,6 @@
 """Data coordinator for Schedule Manager."""
 
+import contextvars
 import hashlib
 import json
 import logging
@@ -18,6 +19,11 @@ from .engine import ScheduleEngine
 from .models import TimeBlock
 from .storage import ScheduleManagerStorage
 
+# Instant de borne programmé par async_track_point_in_time (uniquement le task du réveil).
+_BOUNDARY_EVAL_SNAP: contextvars.ContextVar[Optional[datetime]] = contextvars.ContextVar(
+    "schedule_manager_boundary_eval_snap", default=None
+)
+
 
 def _fingerprint_block_actions(block: TimeBlock) -> str:
     """Empreinte stable des actions : la clé de créneau change si seules les actions changent."""
@@ -27,6 +33,14 @@ def _fingerprint_block_actions(block: TimeBlock) -> str:
     ]
     raw = json.dumps(payload, sort_keys=True, default=str)
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
+
+
+def _slot_key(schedule_id: str, block: TimeBlock) -> str:
+    """Clé unique du créneau (planning + plage + bornes + actions)."""
+    return (
+        f"{schedule_id}:{block.id}:{block.start_time.isoformat()}:"
+        f"{block.end_time.isoformat()}:{_fingerprint_block_actions(block)}"
+    )
 
 
 class ScheduleManagerCoordinator(DataUpdateCoordinator):
@@ -86,10 +100,7 @@ class ScheduleManagerCoordinator(DataUpdateCoordinator):
         block = self.engine.get_current_time_block(sch, current_time)
         if block is None:
             return
-        slot_key = (
-            f"{schedule_id}:{block.start_time.isoformat()}:"
-            f"{block.end_time.isoformat()}:{_fingerprint_block_actions(block)}"
-        )
+        slot_key = _slot_key(schedule_id, block)
         if slot_key == self._last_executed_slot_key:
             return
         if not self.hass.is_running:
@@ -107,10 +118,19 @@ class ScheduleManagerCoordinator(DataUpdateCoordinator):
         if next_when <= now:
             next_when = now + timedelta(seconds=5)
 
+        scheduled_at = next_when
+
         @callback
-        def _on_boundary(_now) -> None:
+        def _on_boundary(_now: datetime) -> None:
             # Éviter async_request_refresh : il est débouncé et peut retarder ou fusionner les bords de plage.
-            self.hass.async_create_task(self.async_refresh())
+            async def _boundary_refresh() -> None:
+                token = _BOUNDARY_EVAL_SNAP.set(scheduled_at)
+                try:
+                    await self.async_refresh()
+                finally:
+                    _BOUNDARY_EVAL_SNAP.reset(token)
+
+            self.hass.async_create_task(_boundary_refresh())
 
         self._boundary_unsub = async_track_point_in_time(self.hass, _on_boundary, next_when)
 
@@ -134,17 +154,19 @@ class ScheduleManagerCoordinator(DataUpdateCoordinator):
     async def _async_update_data(self):
         """Update data."""
         current_time = dt_util.now()
+        planned = _BOUNDARY_EVAL_SNAP.get()
+        if planned is not None:
+            # Si « maintenant » est encore un soupçon avant l’instant de borne du timer,
+            # l’ancien créneau peut encore matcher — on aligne sur la borne programmée (≤ 2 s).
+            skew_sec = (planned - current_time).total_seconds()
+            if 0 < skew_sec <= 2.0:
+                current_time = planned
         schedules = self.storage.get_schedules()
         groups = self.storage.get_groups()
 
         slot = self.engine.resolve_group_action(groups, schedules, current_time)
         current_block = slot.block if slot else None
-        slot_key = (
-            f"{slot.schedule_id}:{slot.block.start_time.isoformat()}:"
-            f"{slot.block.end_time.isoformat()}:{_fingerprint_block_actions(slot.block)}"
-            if slot
-            else None
-        )
+        slot_key = _slot_key(slot.schedule_id, slot.block) if slot else None
 
         if slot_key != self._last_executed_slot_key:
             if slot is not None:
