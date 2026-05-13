@@ -33,6 +33,22 @@ async def _persist(hass: HomeAssistant, storage: ScheduleManagerStorage) -> None
         await coordinator.async_refresh()
 
 
+async def _notify_schedule_enabled_then_refresh(
+    hass: HomeAssistant, schedule_id: str
+) -> None:
+    """Exécute le créneau courant pour ce planning activé, puis rafraîchit le coordonnateur.
+
+    À appeler après ``async_save``, et avant tout ``async_refresh`` « générique » :
+    sinon ``_async_update_data`` enregistre déjà ``_last_executed_slot_key`` et
+    ``async_notify_schedule_enabled`` sort sans appeler les services (toggle / activer inopérant).
+    """
+    coordinator = hass.data.get(DOMAIN, {}).get("coordinator")
+    if coordinator is None:
+        return
+    await coordinator.async_notify_schedule_enabled(schedule_id)
+    await coordinator.async_refresh()
+
+
 async def async_persist(hass: HomeAssistant, storage: ScheduleManagerStorage) -> None:
     """Public helper for entities (save + refresh coordinator)."""
     await _persist(hass, storage)
@@ -292,11 +308,13 @@ async def async_setup_services(hass: HomeAssistant, storage: ScheduleManagerStor
             invalidate = True
         if invalidate:
             _invalidate_coordinator_slot_marker(hass)
-        await _persist(hass, storage)
+        await storage.async_save()
         if enabled_turned_on:
-            coord = hass.data.get(DOMAIN, {}).get("coordinator")
-            if coord is not None:
-                await coord.async_notify_schedule_enabled(schedule_id)
+            await _notify_schedule_enabled_then_refresh(hass, schedule_id)
+        else:
+            coordinator = hass.data.get(DOMAIN, {}).get("coordinator")
+            if coordinator is not None:
+                await coordinator.async_refresh()
 
     async def handle_enable_schedule(call: ServiceCall) -> None:
         schedule_id = call.data["schedule_id"]
@@ -304,10 +322,8 @@ async def async_setup_services(hass: HomeAssistant, storage: ScheduleManagerStor
         if schedule_id in schedules:
             schedules[schedule_id].enabled = True
             _invalidate_coordinator_slot_marker(hass)
-            await _persist(hass, storage)
-            coord = hass.data.get(DOMAIN, {}).get("coordinator")
-            if coord is not None:
-                await coord.async_notify_schedule_enabled(schedule_id)
+            await storage.async_save()
+            await _notify_schedule_enabled_then_refresh(hass, schedule_id)
 
     async def handle_disable_schedule(call: ServiceCall) -> None:
         schedule_id = call.data["schedule_id"]

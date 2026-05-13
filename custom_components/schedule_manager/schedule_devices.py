@@ -13,7 +13,11 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
 from .coordinator import ScheduleManagerCoordinator
-from .services import _invalidate_coordinator_slot_marker, async_persist
+from .services import (
+    _invalidate_coordinator_slot_marker,
+    _notify_schedule_enabled_then_refresh,
+    async_persist,
+)
 
 
 class SchedulePlanningSwitchEntity(CoordinatorEntity, SwitchEntity):
@@ -61,8 +65,10 @@ class SchedulePlanningSwitchEntity(CoordinatorEntity, SwitchEntity):
             return
         schedules[self._schedule_id].enabled = True
         _invalidate_coordinator_slot_marker(self.coordinator.hass)
-        await async_persist(self.coordinator.hass, self.coordinator.storage)
-        await self.coordinator.async_notify_schedule_enabled(self._schedule_id)
+        await self.coordinator.storage.async_save()
+        await _notify_schedule_enabled_then_refresh(
+            self.coordinator.hass, self._schedule_id
+        )
 
     async def async_turn_off(self, **kwargs) -> None:
         schedules = self.coordinator.storage.get_schedules()
