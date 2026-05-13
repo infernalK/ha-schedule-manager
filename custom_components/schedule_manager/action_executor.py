@@ -7,7 +7,11 @@ from typing import TYPE_CHECKING
 
 from homeassistant.core import HomeAssistant
 
-from .const import ACTION_PAYLOAD_META_KEYS, DOMAIN
+from .const import (
+    ACTION_PAYLOAD_META_KEYS,
+    ACTION_PAYLOAD_META_KEY_PREFIX,
+    DOMAIN,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -16,8 +20,35 @@ if TYPE_CHECKING:
 
 
 def _payload_for_service_call(payload: dict) -> dict:
-    """Copie du payload sans métadonnées carte (ex. couleur) interdites par les schémas HA."""
-    return {k: v for k, v in payload.items() if k not in ACTION_PAYLOAD_META_KEYS}
+    """Copie du payload sans métadonnées carte (schémas HA « extra keys »).
+
+    Nettoyage récursif : la couleur peut se retrouver à la racine ou dans ``target`` / listes.
+    Toute clé ``schedule_manager_*`` est retirée (réservée à l’UI carte).
+    """
+
+    def _is_reserved_key(key: object) -> bool:
+        if not isinstance(key, str):
+            return False
+        if key in ACTION_PAYLOAD_META_KEYS:
+            return True
+        return key.startswith(ACTION_PAYLOAD_META_KEY_PREFIX)
+
+    def _scrub(obj: object) -> object:
+        if not isinstance(obj, dict):
+            return obj
+        out: dict = {}
+        for k, v in obj.items():
+            if _is_reserved_key(k):
+                continue
+            if isinstance(v, dict):
+                out[k] = _scrub(v)
+            elif isinstance(v, list):
+                out[k] = [_scrub(i) if isinstance(i, dict) else i for i in v]
+            else:
+                out[k] = v
+        return out
+
+    return _scrub(dict(payload))
 
 
 def _iter_entity_ids_from_payload(payload: dict) -> list[str]:

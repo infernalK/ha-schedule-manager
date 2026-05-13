@@ -10,8 +10,9 @@ STORAGE_VERSION = 1
 # Default values
 DEFAULT_OVERRIDE_DURATION = 3600  # 1 hour in seconds
 
-# Clés ajoutées par la carte Lovelace (couleur frise) — absentes des schémas de service HA.
+# Clés / préfixes réservés par la carte Lovelace (non acceptés par les schémas de service HA).
 ACTION_PAYLOAD_META_KEYS = frozenset({"schedule_manager_color"})
+ACTION_PAYLOAD_META_KEY_PREFIX = "schedule_manager_"
 
 # Action types
 ACTION_SET_PRESET_MODE = "set_preset_mode"
