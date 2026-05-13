@@ -1,4 +1,5 @@
 {
+  "title": "Schedule Manager",
   "config": {
     "step": {
       "user": {
@@ -40,6 +41,196 @@
     },
     "abort": {
       "storage_unavailable": "Le stockage Schedule Manager n’est pas disponible. Redémarrez Home Assistant ou rechargez l’intégration."
+    }
+  },
+  "device": {
+    "hub": {
+      "name": "Schedule Manager",
+      "model": "Hub"
+    },
+    "planning_device": {
+      "model": "Planning"
+    }
+  },
+  "entity": {
+    "sensor": {
+      "hub_status": {
+        "name": "État"
+      }
+    },
+    "switch": {
+      "hub_enabled": {
+        "name": "Planification activée"
+      }
+    }
+  },
+  "services": {
+    "create_schedule": {
+      "name": "Créer un planning",
+      "description": "Crée un nouveau planning.",
+      "fields": {
+        "name": {
+          "name": "Nom",
+          "description": "Nom affiché du planning."
+        },
+        "time_blocks": {
+          "name": "Plages horaires",
+          "description": "Liste de plages. Chaque plage a start_time, end_time et soit « actions » (liste non vide d’objets action_type + action_payload), soit l’ancien format plat action_type + action_payload."
+        },
+        "repeat_days": {
+          "name": "Jours de répétition",
+          "description": "Jours de la semaine (0 = lundi … 6 = dimanche)."
+        }
+      }
+    },
+    "enable_schedule": {
+      "name": "Activer un planning",
+      "description": "Active un planning.",
+      "fields": {
+        "schedule_id": {
+          "name": "Identifiant du planning",
+          "description": "UUID du planning à activer."
+        }
+      }
+    },
+    "disable_schedule": {
+      "name": "Désactiver un planning",
+      "description": "Désactive un planning.",
+      "fields": {
+        "schedule_id": {
+          "name": "Identifiant du planning",
+          "description": "UUID du planning à désactiver."
+        }
+      }
+    },
+    "delete_schedule": {
+      "name": "Supprimer un planning",
+      "description": "Supprime un planning.",
+      "fields": {
+        "schedule_id": {
+          "name": "Identifiant du planning",
+          "description": "UUID du planning à supprimer."
+        }
+      }
+    },
+    "update_schedule": {
+      "name": "Mettre à jour un planning",
+      "description": "Met à jour un planning (nom, activé, jours, plages).",
+      "fields": {
+        "schedule_id": {
+          "name": "Identifiant du planning",
+          "description": "UUID du planning à modifier."
+        },
+        "name": {
+          "name": "Nom",
+          "description": "Nouveau nom affiché."
+        },
+        "enabled": {
+          "name": "Activé"
+        },
+        "repeat_days": {
+          "name": "Jours de répétition",
+          "description": "Jours 0 = lundi … 6 = dimanche."
+        },
+        "time_blocks": {
+          "name": "Plages horaires",
+          "description": "Liste complète des plages si vous modifiez les créneaux (remplace l’existant). Chaque plage : start_time, end_time, et actions[] ou l’ancien couple action_type / action_payload."
+        }
+      }
+    },
+    "create_group": {
+      "name": "Créer un groupe",
+      "description": "Crée un nouveau groupe de plannings.",
+      "fields": {
+        "name": {
+          "name": "Nom",
+          "description": "Nom du groupe."
+        },
+        "schedules": {
+          "name": "Plannings",
+          "description": "Liste des identifiants de plannings."
+        },
+        "exclusive": {
+          "name": "Exclusif",
+          "description": "Si vrai, un seul planning du groupe peut être actif à la fois."
+        }
+      }
+    },
+    "enable_group": {
+      "name": "Activer un groupe",
+      "description": "Active un groupe.",
+      "fields": {
+        "group_id": {
+          "name": "Identifiant du groupe",
+          "description": "UUID du groupe à activer."
+        }
+      }
+    },
+    "disable_group": {
+      "name": "Désactiver un groupe",
+      "description": "Désactive un groupe.",
+      "fields": {
+        "group_id": {
+          "name": "Identifiant du groupe",
+          "description": "UUID du groupe à désactiver."
+        }
+      }
+    },
+    "set_active_schedule": {
+      "name": "Définir le planning actif",
+      "description": "Définit le planning actif dans un groupe exclusif.",
+      "fields": {
+        "group_id": {
+          "name": "Identifiant du groupe",
+          "description": "UUID du groupe."
+        },
+        "schedule_id": {
+          "name": "Identifiant du planning",
+          "description": "UUID du planning à activer."
+        }
+      }
+    },
+    "set_override": {
+      "name": "Définir un override",
+      "description": "Définit un override temporaire.",
+      "fields": {
+        "target_entity": {
+          "name": "Entité cible",
+          "description": "Entité à surcharger."
+        },
+        "action_type": {
+          "name": "Type d’action",
+          "description": "Identifiant du service, ex. light.turn_on."
+        },
+        "action_payload": {
+          "name": "Données d’action",
+          "description": "Données du service pour l’action."
+        },
+        "duration": {
+          "name": "Durée",
+          "description": "Durée en secondes."
+        }
+      }
+    },
+    "clear_override": {
+      "name": "Effacer un override",
+      "description": "Supprime un override.",
+      "fields": {
+        "override_id": {
+          "name": "Identifiant de l’override",
+          "description": "UUID de l’override à supprimer."
+        }
+      }
+    },
+    "run_actions": {
+      "name": "Exécuter les actions",
+      "description": "Exécute immédiatement les actions de la plage horaire active (comme scheduler.run_action). Sans schedule_id : plage résolue globalement (groupes + plannings orphelins). Avec schedule_id : plage active pour ce planning uniquement.",
+      "fields": {
+        "schedule_id": {
+          "name": "Identifiant du planning",
+          "description": "UUID optionnel du planning pour forcer la plage active utilisée."
+        }
+      }
     }
   }
 }

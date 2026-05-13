@@ -31,7 +31,8 @@ class ScheduleManagerSensor(CoordinatorEntity, SensorEntity):
         """Initialize the sensor."""
         super().__init__(coordinator)
         self._entry = entry
-        self._attr_name = "Schedule Manager Status"
+        self._attr_translation_key = "hub_status"
+        self._attr_has_entity_name = True
         self._attr_unique_id = f"{DOMAIN}_{entry.entry_id}_status"
 
     @property
@@ -39,9 +40,8 @@ class ScheduleManagerSensor(CoordinatorEntity, SensorEntity):
         """Regroupe capteur et commutateur sous un même appareil logique."""
         return DeviceInfo(
             identifiers={(DOMAIN, self._entry.entry_id)},
-            name="Schedule Manager",
             manufacturer="Schedule Manager",
-            model="Hub",
+            translation_key="hub",
         )
 
     @property

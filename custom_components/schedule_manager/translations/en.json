@@ -1,4 +1,5 @@
 {
+  "title": "Schedule Manager",
   "config": {
     "step": {
       "user": {
@@ -40,6 +41,196 @@
     },
     "abort": {
       "storage_unavailable": "Schedule Manager storage is not available. Restart Home Assistant or reload the integration."
+    }
+  },
+  "device": {
+    "hub": {
+      "name": "Schedule Manager",
+      "model": "Hub"
+    },
+    "planning_device": {
+      "model": "Schedule"
+    }
+  },
+  "entity": {
+    "sensor": {
+      "hub_status": {
+        "name": "Status"
+      }
+    },
+    "switch": {
+      "hub_enabled": {
+        "name": "Scheduling enabled"
+      }
+    }
+  },
+  "services": {
+    "create_schedule": {
+      "name": "Create schedule",
+      "description": "Create a new schedule.",
+      "fields": {
+        "name": {
+          "name": "Name",
+          "description": "Display name of the schedule."
+        },
+        "time_blocks": {
+          "name": "Time blocks",
+          "description": "List of blocks. Each block has start_time, end_time and either actions (non-empty list of action_type + action_payload) or the legacy flat action_type + action_payload."
+        },
+        "repeat_days": {
+          "name": "Repeat days",
+          "description": "Days of the week (0 = Monday … 6 = Sunday)."
+        }
+      }
+    },
+    "enable_schedule": {
+      "name": "Enable schedule",
+      "description": "Enable a schedule.",
+      "fields": {
+        "schedule_id": {
+          "name": "Schedule ID",
+          "description": "UUID of the schedule to enable."
+        }
+      }
+    },
+    "disable_schedule": {
+      "name": "Disable schedule",
+      "description": "Disable a schedule.",
+      "fields": {
+        "schedule_id": {
+          "name": "Schedule ID",
+          "description": "UUID of the schedule to disable."
+        }
+      }
+    },
+    "delete_schedule": {
+      "name": "Delete schedule",
+      "description": "Delete a schedule.",
+      "fields": {
+        "schedule_id": {
+          "name": "Schedule ID",
+          "description": "UUID of the schedule to delete."
+        }
+      }
+    },
+    "update_schedule": {
+      "name": "Update schedule",
+      "description": "Update an existing schedule (name, enabled, days, time blocks).",
+      "fields": {
+        "schedule_id": {
+          "name": "Schedule ID",
+          "description": "UUID of the schedule to update."
+        },
+        "name": {
+          "name": "Name",
+          "description": "New display name."
+        },
+        "enabled": {
+          "name": "Enabled"
+        },
+        "repeat_days": {
+          "name": "Repeat days",
+          "description": "Days 0 = Monday … 6 = Sunday."
+        },
+        "time_blocks": {
+          "name": "Time blocks",
+          "description": "Full list of blocks when editing slots (replaces existing). Each block: start_time, end_time, and actions[] or legacy action_type / action_payload."
+        }
+      }
+    },
+    "create_group": {
+      "name": "Create group",
+      "description": "Create a new schedule group.",
+      "fields": {
+        "name": {
+          "name": "Name",
+          "description": "Name of the group."
+        },
+        "schedules": {
+          "name": "Schedules",
+          "description": "List of schedule IDs."
+        },
+        "exclusive": {
+          "name": "Exclusive",
+          "description": "If true, only one schedule in the group can be active at a time."
+        }
+      }
+    },
+    "enable_group": {
+      "name": "Enable group",
+      "description": "Enable a group.",
+      "fields": {
+        "group_id": {
+          "name": "Group ID",
+          "description": "UUID of the group to enable."
+        }
+      }
+    },
+    "disable_group": {
+      "name": "Disable group",
+      "description": "Disable a group.",
+      "fields": {
+        "group_id": {
+          "name": "Group ID",
+          "description": "UUID of the group to disable."
+        }
+      }
+    },
+    "set_active_schedule": {
+      "name": "Set active schedule",
+      "description": "Set the active schedule in an exclusive group.",
+      "fields": {
+        "group_id": {
+          "name": "Group ID",
+          "description": "UUID of the group."
+        },
+        "schedule_id": {
+          "name": "Schedule ID",
+          "description": "UUID of the schedule to activate."
+        }
+      }
+    },
+    "set_override": {
+      "name": "Set override",
+      "description": "Set a temporary override.",
+      "fields": {
+        "target_entity": {
+          "name": "Target entity",
+          "description": "Entity to override."
+        },
+        "action_type": {
+          "name": "Action type",
+          "description": "Service id, e.g. light.turn_on."
+        },
+        "action_payload": {
+          "name": "Action payload",
+          "description": "Service data for the action."
+        },
+        "duration": {
+          "name": "Duration",
+          "description": "Duration in seconds."
+        }
+      }
+    },
+    "clear_override": {
+      "name": "Clear override",
+      "description": "Clear an override.",
+      "fields": {
+        "override_id": {
+          "name": "Override ID",
+          "description": "UUID of the override to clear."
+        }
+      }
+    },
+    "run_actions": {
+      "name": "Run actions",
+      "description": "Immediately run actions for the active time block (similar to scheduler.run_action). Without schedule_id: resolve the active block globally (groups + orphan schedules). With schedule_id: active block for that schedule only.",
+      "fields": {
+        "schedule_id": {
+          "name": "Schedule ID",
+          "description": "Optional schedule UUID to force which schedule’s active block is used."
+        }
+      }
     }
   }
 }

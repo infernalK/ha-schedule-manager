@@ -28,7 +28,8 @@ class ScheduleManagerSwitch(SwitchEntity):
         """Initialize the switch."""
         self._coordinator = coordinator
         self._entry = entry
-        self._attr_name = "Schedule Manager Enabled"
+        self._attr_translation_key = "hub_enabled"
+        self._attr_has_entity_name = True
         self._attr_unique_id = f"{DOMAIN}_{entry.entry_id}_enabled"
         self._is_on = True
 
@@ -37,9 +38,8 @@ class ScheduleManagerSwitch(SwitchEntity):
         """Même appareil que le capteur d’état."""
         return DeviceInfo(
             identifiers={(DOMAIN, self._entry.entry_id)},
-            name="Schedule Manager",
             manufacturer="Schedule Manager",
-            model="Hub",
+            translation_key="hub",
         )
 
     @property
