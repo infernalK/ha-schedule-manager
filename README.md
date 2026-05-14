@@ -2,6 +2,17 @@
 
 Intégration Home Assistant pour des plannings à créneaux et actions (ex. climat).
 
+## Intégration et carte Lovelace
+
+Deux éléments distincts, complémentaires :
+
+| Composant | Rôle |
+|-----------|------|
+| **Cette intégration** (`schedule_manager`) | Stocke les plannings, exécute les actions aux horaires prévus, expose des **services** et des **entités** (capteur hub, interrupteurs par planning). |
+| **[Schedule Manager Card](https://github.com/infernalK/ha-schedule-manager-card)** | Interface sur le tableau de bord : elle **lit** l’attribut `schedules` du **capteur hub** et **appelle** les services `schedule_manager.*` pour créer ou modifier des plannings, activer / désactiver, gérer les plages, etc. |
+
+Sans la carte, vous pouvez tout faire via **Paramètres → Appareils et services** (création de planning) et les **services** / **automatisations**. La carte évite d’écrire du YAML pour les plages au quotidien.
+
 ## Installation
 
 ### Avec HACS (recommandé)
@@ -11,10 +22,6 @@ Intégration Home Assistant pour des plannings à créneaux et actions (ex. clim
 3. **Paramètres → Appareils et services → Ajouter une intégration** → *Schedule Manager*.
 
 Pour un lien « Ajouter à HACS » depuis la doc : [générer un lien my.home-assistant.io](https://my.home-assistant.io/create-link/?redirect=hacs_repository) avec l’URL du dépôt ci-dessus.
-
-**Marques (brands)** : pour figurer dans le catalogue HACS par défaut et les icônes dans l’UI, il faut une PR sur [home-assistant/brands](https://github.com/home-assistant/brands) (`custom_integrations/schedule_manager/`). Tant que ce n’est pas fusionné, la CI du dépôt ignore volontairement la vérification `brands` (voir `.github/workflows/ci.yml`).
-
-**Description et topics GitHub** : sur la page du dépôt, **About** (roue dentée) → renseigner une courte description (ex. *Intégration Home Assistant : plannings à créneaux et actions*) et des topics (`home-assistant`, `hacs`, `integration`, `schedule`, etc.). Cela satisfait aussi le validateur HACS ; vous pouvez alors retirer `topics` et `description` de `ignore` dans `.github/workflows/ci.yml`.
 
 ### Manuellement
 
@@ -56,6 +63,7 @@ Après installation de la [Schedule Manager Card](https://github.com/infernalK/h
 | `schedule_manager.delete_schedule` | Supprimer un planning (`schedule_id`) — **refusé** s’il ne reste qu’un seul planning (il faut en créer un autre avant). |
 | `schedule_manager.enable_schedule` / `disable_schedule` | Activer / désactiver |
 | `schedule_manager.run_actions` | Exécuter les actions de la plage active (optionnel : `schedule_id`) |
+| `schedule_manager.set_override` / `clear_override` | Forcer ou annuler un comportement temporaire (voir paramètres avancés de l’intégration) |
 
 **Exemple YAML** — une plage avec **plusieurs actions** (services Home Assistant) :
 
@@ -80,15 +88,6 @@ L’ancien format avec `action_type` / `action_payload` directement sous la plag
 
 Les identifiants `schedule_id` sont ceux affichés dans les **attributs** du capteur `schedules` (clés de l’objet).
 
-## Services (liste complète)
-
-- `schedule_manager.create_schedule`
-- `schedule_manager.update_schedule`
-- `schedule_manager.delete_schedule`
-- `schedule_manager.enable_schedule` / `disable_schedule`
-- `schedule_manager.run_actions`
-- `schedule_manager.set_override` / `clear_override`
-
 ## Entités et appareils
 
 - **Appareil « Schedule Manager » (hub)** : capteur d’état (résumé + attributs pour la carte Lovelace) et commutateur générique.
@@ -96,4 +95,9 @@ Les identifiants `schedule_id` sont ceux affichés dans les **attributs** du cap
 
 Les plannings créés ou supprimés (carte, services, automatisations) ajoutent ou retirent automatiquement ces appareils / entités.
 
-Les `entity_id` exacts dépendent de votre installation (`sensor.schedule_manager_<entry>_status`, `switch.<nom_du_planning>`, etc.).
+**Capteur hub (données pour la carte)** : l’`entity_id` est dérivé du nom de l’appareil hub et du libellé traduit de l’entité « état » (ex. en interface **anglais** : `sensor.schedule_manager_status` ; en **français** : souvent `sensor.schedule_manager_etat`). Vérifiez dans **Paramètres → Appareils et services → Schedule Manager** l’entité capteur sous l’appareil hub, ou utilisez l’éditeur de la carte pour la sélectionner. Les interrupteurs par planning suivent le **nom** que vous leur avez donné (`switch.<slug_du_nom>`, etc.).
+
+## Notes pour les mainteneurs (HACS, marques)
+
+- **Marques (brands)** : pour figurer dans le catalogue HACS par défaut et les icônes dans l’UI, une PR sur [home-assistant/brands](https://github.com/home-assistant/brands) (`custom_integrations/schedule_manager/`). Tant que ce n’est pas fusionné, la CI du dépôt peut ignorer volontairement la vérification `brands` (voir `.github/workflows/ci.yml`).
+- **Description et topics GitHub** : **About** (roue dentée) → description courte et topics (`home-assistant`, `hacs`, `integration`, `schedule`, etc.) pour le validateur HACS ; vous pouvez alors retirer `topics` et `description` de `ignore` dans `.github/workflows/ci.yml`.
