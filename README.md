@@ -55,7 +55,7 @@ Après installation de la [Schedule Manager Card](https://github.com/infernalK/h
 | `schedule_manager.update_schedule` | Modifier un planning : `schedule_id` obligatoire ; `name`, `enabled`, `repeat_days`, `time_blocks` (liste complète si vous modifiez les plages) |
 | `schedule_manager.delete_schedule` | Supprimer un planning (`schedule_id`) — **refusé** s’il ne reste qu’un seul planning (il faut en créer un autre avant). |
 | `schedule_manager.enable_schedule` / `disable_schedule` | Activer / désactiver |
-| `schedule_manager.create_group`, `set_active_schedule`, … | Groupes exclusifs, etc. |
+| `schedule_manager.run_actions` | Exécuter les actions de la plage active (optionnel : `schedule_id`) |
 
 **Exemple YAML** — une plage avec **plusieurs actions** (services Home Assistant) :
 
@@ -86,9 +86,7 @@ Les identifiants `schedule_id` sont ceux affichés dans les **attributs** du cap
 - `schedule_manager.update_schedule`
 - `schedule_manager.delete_schedule`
 - `schedule_manager.enable_schedule` / `disable_schedule`
-- `schedule_manager.create_group`
-- `schedule_manager.enable_group` / `disable_group`
-- `schedule_manager.set_active_schedule`
+- `schedule_manager.run_actions`
 - `schedule_manager.set_override` / `clear_override`
 
 ## Entités et appareils

@@ -46,9 +46,6 @@
   "device": {
     "hub": {
       "name": "Schedule Manager"
-    },
-    "planning_device": {
-      "name": "Schedule"
     }
   },
   "entity": {
@@ -137,58 +134,6 @@
         }
       }
     },
-    "create_group": {
-      "name": "Create group",
-      "description": "Create a new schedule group.",
-      "fields": {
-        "name": {
-          "name": "Name",
-          "description": "Name of the group."
-        },
-        "schedules": {
-          "name": "Schedules",
-          "description": "List of schedule IDs."
-        },
-        "exclusive": {
-          "name": "Exclusive",
-          "description": "If true, only one schedule in the group can be active at a time."
-        }
-      }
-    },
-    "enable_group": {
-      "name": "Enable group",
-      "description": "Enable a group.",
-      "fields": {
-        "group_id": {
-          "name": "Group ID",
-          "description": "UUID of the group to enable."
-        }
-      }
-    },
-    "disable_group": {
-      "name": "Disable group",
-      "description": "Disable a group.",
-      "fields": {
-        "group_id": {
-          "name": "Group ID",
-          "description": "UUID of the group to disable."
-        }
-      }
-    },
-    "set_active_schedule": {
-      "name": "Set active schedule",
-      "description": "Set the active schedule in an exclusive group.",
-      "fields": {
-        "group_id": {
-          "name": "Group ID",
-          "description": "UUID of the group."
-        },
-        "schedule_id": {
-          "name": "Schedule ID",
-          "description": "UUID of the schedule to activate."
-        }
-      }
-    },
     "set_override": {
       "name": "Set override",
       "description": "Set a temporary override.",
@@ -223,7 +168,7 @@
     },
     "run_actions": {
       "name": "Run actions",
-      "description": "Immediately run actions for the active time block (similar to scheduler.run_action). Without schedule_id: resolve the active block globally (groups + orphan schedules). With schedule_id: active block for that schedule only.",
+      "description": "Immediately run actions for the active time block(s) (similar to scheduler.run_action). Without schedule_id: for all enabled schedules, runs every active block whose start time equals the latest start among currently active blocks (so multiple schedules with the same start time all run). With schedule_id: active block for that schedule only.",
       "fields": {
         "schedule_id": {
           "name": "Schedule ID",

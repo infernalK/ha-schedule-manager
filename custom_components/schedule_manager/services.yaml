@@ -110,70 +110,6 @@ update_schedule:
       selector:
         object:
 
-create_group:
-  name: Create Group
-  description: Create a new schedule group
-  fields:
-    name:
-      name: Name
-      description: Name of the group
-      required: true
-      selector:
-        text:
-    schedules:
-      name: Schedules
-      description: List of schedule IDs
-      required: false
-      selector:
-        select:
-          multiple: true
-          options: []  # Dynamic
-    exclusive:
-      name: Exclusive
-      description: Whether only one schedule can be active
-      required: false
-      selector:
-        boolean:
-
-enable_group:
-  name: Enable Group
-  description: Enable a group
-  fields:
-    group_id:
-      name: Group ID
-      description: ID of the group to enable
-      required: true
-      selector:
-        text:
-
-disable_group:
-  name: Disable Group
-  description: Disable a group
-  fields:
-    group_id:
-      name: Group ID
-      description: ID of the group to disable
-      required: true
-      selector:
-        text:
-
-set_active_schedule:
-  name: Set Active Schedule
-  description: Set the active schedule in an exclusive group
-  fields:
-    group_id:
-      name: Group ID
-      description: ID of the group
-      required: true
-      selector:
-        text:
-    schedule_id:
-      name: Schedule ID
-      description: ID of the schedule to activate
-      required: true
-      selector:
-        text:
-
 set_override:
   name: Set Override
   description: Set a temporary override
@@ -219,8 +155,9 @@ clear_override:
 run_actions:
   name: Run actions
   description: >-
-    Immediately run actions for the active time block (similar to scheduler.run_action).
-    Without schedule_id: resolve the active block globally (groups + orphan schedules).
+    Immediately run actions for the active time block(s) (similar to scheduler.run_action).
+    Without schedule_id: runs every active block whose start time is the latest among blocks
+    covering the current instant (multiple schedules with the same start: all run in order).
     With schedule_id: active block for that schedule only.
   fields:
     schedule_id:

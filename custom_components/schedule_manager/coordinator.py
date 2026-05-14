@@ -47,6 +47,12 @@ def _slot_key(schedule_id: str, block: TimeBlock) -> str:
     )
 
 
+def _composite_slot_key(slots: list) -> str:
+    """Clé stable pour un ensemble de créneaux exécutés ensemble (séparateur improbable dans les clés)."""
+    keys = sorted(_slot_key(s.schedule_id, s.block) for s in slots)
+    return "\x1e".join(keys)
+
+
 class ScheduleManagerCoordinator(DataUpdateCoordinator):
     """Coordinator for Schedule Manager data."""
 
@@ -87,31 +93,6 @@ class ScheduleManagerCoordinator(DataUpdateCoordinator):
         l’état mémoire du coordinateur doit être forcé (ex. chemins sans recalcul immédiat).
         """
         self._last_executed_slot_key = None
-
-    async def async_notify_schedule_enabled(self, schedule_id: str) -> None:
-        """Après activation d’un planning : applique les actions du créneau courant pour ce planning.
-
-        `resolve_group_action` ne retourne qu’une seule plage à la fois ; un autre planning
-        peut donc « gagner » alors que celui qu’on vient d’activer est aussi dans une plage
-        valide. On exécute ici le créneau de *ce* planning si ce n’est pas déjà le dernier
-        créneau exécuté (évite les doublons quand `async_refresh` a déjà tout fait).
-        """
-        current_time = dt_util.now()
-        schedules = self.storage.get_schedules()
-        sch = schedules.get(schedule_id)
-        if not sch or not sch.enabled:
-            return
-        block = self.engine.get_current_time_block(sch, current_time)
-        if block is None:
-            return
-        slot_key = _slot_key(schedule_id, block)
-        if slot_key == self._last_executed_slot_key:
-            return
-        if not self.hass.is_running:
-            return
-        ok = await async_run_block_actions(self.hass, block)
-        if ok:
-            self._last_executed_slot_key = slot_key
 
     def _schedule_boundary_watcher(self, next_when: Optional[datetime]) -> None:
         """Programme un rafraîchissement à la prochaine borne start/end de plage."""
@@ -166,31 +147,34 @@ class ScheduleManagerCoordinator(DataUpdateCoordinator):
             if 0 < skew_sec <= 5.0:
                 current_time = planned
         schedules = self.storage.get_schedules()
-        groups = self.storage.get_groups()
 
-        slot = self.engine.resolve_group_action(groups, schedules, current_time)
+        slots = self.engine.resolve_active_slots_for_execution(schedules, current_time)
+        slot_key = _composite_slot_key(slots) if slots else None
+        slot = slots[0] if slots else None
         current_block = slot.block if slot else None
-        slot_key = _slot_key(slot.schedule_id, slot.block) if slot else None
 
         if slot_key != self._last_executed_slot_key:
-            if slot is not None:
-                # Ne pas exiger CoreState.running : pendant le boot HA est souvent en « starting »
-                # alors que hass.is_running est déjà True — sinon aucune action au premier cycle ni au redémarrage.
+            if slots:
                 if not self.hass.is_running:
                     self.logger.debug(
                         "%s: Home Assistant pas encore prêt (is_running=False) — exécution des actions reportée",
                         DOMAIN,
                     )
                 else:
-                    ok = await async_run_block_actions(self.hass, slot.block)
-                    if ok:
+                    all_ok = True
+                    for sl in slots:
+                        ok = await async_run_block_actions(self.hass, sl.block)
+                        if not ok:
+                            all_ok = False
+                            break
+                    if all_ok:
                         self._last_executed_slot_key = slot_key
                     else:
                         self._schedule_deferred_refresh()
             else:
                 self._last_executed_slot_key = None
 
-        next_wakeup = self.engine.compute_next_schedule_event(groups, schedules, current_time)
+        next_wakeup = self.engine.compute_next_schedule_event(schedules, current_time)
 
         self._schedule_boundary_watcher(next_wakeup)
 
@@ -199,5 +183,4 @@ class ScheduleManagerCoordinator(DataUpdateCoordinator):
             "current_time_block": current_block,
             "next_trigger": next_wakeup.isoformat() if next_wakeup else None,
             "schedules": schedules,
-            "groups": groups,
         }

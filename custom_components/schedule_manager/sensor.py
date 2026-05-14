@@ -9,7 +9,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
 from .coordinator import ScheduleManagerCoordinator
-from .models import group_to_dict, schedule_to_dict, time_block_to_dict
+from .models import schedule_to_dict, time_block_to_dict
 
 
 async def async_setup_entry(
@@ -54,10 +54,9 @@ class ScheduleManagerSensor(CoordinatorEntity, SensorEntity):
 
     @property
     def extra_state_attributes(self):
-        """Expose schedules and groups for Lovelace cards."""
+        """Expose les plannings pour les cartes Lovelace."""
         storage = self.coordinator.storage
         schedules = storage.get_schedules()
-        groups = storage.get_groups()
         current = None
         active_schedule_id = None
         if self.coordinator.data:
@@ -67,7 +66,6 @@ class ScheduleManagerSensor(CoordinatorEntity, SensorEntity):
                 active_schedule_id = slot.schedule_id
         return {
             "schedules": {sid: schedule_to_dict(s) for sid, s in schedules.items()},
-            "groups": {gid: group_to_dict(g) for gid, g in groups.items()},
             "active_schedule_id": active_schedule_id,
             "next_trigger": self.coordinator.data.get("next_trigger")
             if self.coordinator.data

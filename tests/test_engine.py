@@ -32,7 +32,6 @@ _spec_e.loader.exec_module(_mod_e)
 ScheduleEngine = _mod_e.ScheduleEngine
 BlockAction = _mod_m.BlockAction
 Schedule = _mod_m.Schedule
-ScheduleGroup = _mod_m.ScheduleGroup
 TimeBlock = _mod_m.TimeBlock
 
 
@@ -51,8 +50,8 @@ def _sch(
     )
 
 
-def test_resolve_orphan_schedules_without_groups():
-    """Sans groupe en stockage, un planning seul doit quand même produire une plage active."""
+def test_resolve_active_slot_single_schedule():
+    """Un seul planning : plage active attendue."""
     b = TimeBlock(
         start_time=time(9, 0),
         end_time=time(17, 0),
@@ -61,33 +60,83 @@ def test_resolve_orphan_schedules_without_groups():
     schedules = {"a": _sch("a", [b])}
     now = datetime(2026, 5, 13, 12, 0, 0)  # mercredi
     assert now.weekday() == 2
-    block = ScheduleEngine.resolve_group_action({}, schedules, now)
-    assert block is not None
-    assert block.schedule_id == "a"
-    assert block.block.start_time == time(9, 0)
+    slot = ScheduleEngine.resolve_active_slot(schedules, now)
+    assert slot is not None
+    assert slot.schedule_id == "a"
+    assert slot.block.start_time == time(9, 0)
 
 
-def test_exclusive_group_active_schedule_none_still_matches():
-    """Groupe exclusif sans planning actif choisi : ne plus tout exclure (None != id)."""
-    b = TimeBlock(
-        start_time=time(10, 0),
-        end_time=time(12, 0),
-        actions=[BlockAction(action_type="switch.turn_on", action_payload={"entity_id": "switch.x"})],
+def test_resolve_active_slot_latest_start_wins_across_schedules():
+    """Plusieurs plannings : début de plage le plus tardif seul dans le lot d’exécution."""
+    wide = TimeBlock(
+        time(8, 0),
+        time(17, 0),
+        [BlockAction("light.turn_on", {}, id="w")],
+        id="bw",
     )
-    schedules = {"s1": _sch("s1", [b])}
-    groups = {
-        "g1": ScheduleGroup(
-            name="G",
-            id="g1",
-            schedules=["s1"],
-            exclusive=True,
-            active_schedule=None,
-        )
+    narrow = TimeBlock(
+        time(10, 0),
+        time(12, 0),
+        [BlockAction("switch.turn_on", {}, id="n")],
+        id="bn",
+    )
+    schedules = {
+        "wide": _sch("wide", [wide]),
+        "narrow": _sch("narrow", [narrow]),
     }
     now = datetime(2026, 5, 13, 11, 0, 0)
-    block = ScheduleEngine.resolve_group_action(groups, schedules, now)
-    assert block is not None
-    assert block.schedule_id == "s1"
+    slot = ScheduleEngine.resolve_active_slot(schedules, now)
+    assert slot is not None
+    assert slot.schedule_id == "narrow"
+    assert slot.block.id == "bn"
+    slots = ScheduleEngine.resolve_active_slots_for_execution(schedules, now)
+    assert len(slots) == 1
+    assert slots[0].schedule_id == "narrow"
+
+
+def test_resolve_active_slots_same_start_two_schedules():
+    """Deux plannings avec plage démarrée à la même heure : les deux sont à exécuter."""
+    b1 = TimeBlock(
+        time(7, 0),
+        time(9, 0),
+        [BlockAction("light.turn_on", {}, id="1")],
+        id="b1",
+    )
+    b2 = TimeBlock(
+        time(7, 0),
+        time(9, 0),
+        [BlockAction("switch.turn_on", {}, id="2")],
+        id="b2",
+    )
+    schedules = {"a": _sch("a", [b1]), "z_second": _sch("z_second", [b2])}
+    now = datetime(2026, 5, 13, 7, 30, 0)
+    slots = ScheduleEngine.resolve_active_slots_for_execution(schedules, now)
+    assert len(slots) == 2
+    assert [s.schedule_id for s in slots] == ["a", "z_second"]
+
+
+def test_resolve_active_slots_only_latest_start_among_active():
+    """Plage 6h–12h et 7h–9h à 7h30 : seule la plage commencée à 7h est dans le lot."""
+    b_early = TimeBlock(
+        time(6, 0),
+        time(12, 0),
+        [BlockAction("light.turn_on", {}, id="e")],
+        id="early",
+    )
+    b_late = TimeBlock(
+        time(7, 0),
+        time(9, 0),
+        [BlockAction("switch.turn_on", {}, id="l")],
+        id="late",
+    )
+    schedules = {
+        "early_s": _sch("early_s", [b_early]),
+        "late_s": _sch("late_s", [b_late]),
+    }
+    now = datetime(2026, 5, 13, 7, 30, 0)
+    slots = ScheduleEngine.resolve_active_slots_for_execution(schedules, now)
+    assert len(slots) == 1
+    assert slots[0].schedule_id == "late_s"
 
 
 def test_overnight_block():
@@ -107,7 +156,7 @@ def test_compute_next_schedule_event():
     schedules = {"a": _sch("a", [b], repeat_days=[2])}
     now = datetime(2026, 5, 13, 12, 0, 0, tzinfo=timezone.utc)
     assert now.weekday() == 2
-    nxt = ScheduleEngine.compute_next_schedule_event({}, schedules, now)
+    nxt = ScheduleEngine.compute_next_schedule_event(schedules, now)
     assert nxt == datetime(2026, 5, 13, 17, 0, 0, tzinfo=timezone.utc)
 
 
@@ -130,37 +179,3 @@ def test_get_current_time_block_max_start_wins_on_overlap():
     assert ScheduleEngine.get_current_time_block(sch_wide_first, now) == b_narrow
     sch_narrow_first = _sch("x", [b_narrow, b_wide])
     assert ScheduleEngine.get_current_time_block(sch_narrow_first, now) == b_narrow
-
-
-def test_resolve_group_latest_start_wins():
-    """Plusieurs plannings actifs dans un groupe : début de plage le plus tardif gagne."""
-    wide = TimeBlock(
-        time(8, 0),
-        time(17, 0),
-        [BlockAction("light.turn_on", {}, id="w")],
-        id="bw",
-    )
-    narrow = TimeBlock(
-        time(10, 0),
-        time(12, 0),
-        [BlockAction("switch.turn_on", {}, id="n")],
-        id="bn",
-    )
-    schedules = {
-        "wide": _sch("wide", [wide]),
-        "narrow": _sch("narrow", [narrow]),
-    }
-    groups = {
-        "g1": ScheduleGroup(
-            name="G",
-            id="g1",
-            schedules=["wide", "narrow"],
-            exclusive=False,
-            active_schedule=None,
-        )
-    }
-    now = datetime(2026, 5, 13, 11, 0, 0)
-    slot = ScheduleEngine.resolve_group_action(groups, schedules, now)
-    assert slot is not None
-    assert slot.schedule_id == "narrow"
-    assert slot.block.id == "bn"

@@ -46,9 +46,6 @@
   "device": {
     "hub": {
       "name": "Schedule Manager"
-    },
-    "planning_device": {
-      "name": "Planning"
     }
   },
   "entity": {
@@ -137,58 +134,6 @@
         }
       }
     },
-    "create_group": {
-      "name": "Créer un groupe",
-      "description": "Crée un nouveau groupe de plannings.",
-      "fields": {
-        "name": {
-          "name": "Nom",
-          "description": "Nom du groupe."
-        },
-        "schedules": {
-          "name": "Plannings",
-          "description": "Liste des identifiants de plannings."
-        },
-        "exclusive": {
-          "name": "Exclusif",
-          "description": "Si vrai, un seul planning du groupe peut être actif à la fois."
-        }
-      }
-    },
-    "enable_group": {
-      "name": "Activer un groupe",
-      "description": "Active un groupe.",
-      "fields": {
-        "group_id": {
-          "name": "Identifiant du groupe",
-          "description": "UUID du groupe à activer."
-        }
-      }
-    },
-    "disable_group": {
-      "name": "Désactiver un groupe",
-      "description": "Désactive un groupe.",
-      "fields": {
-        "group_id": {
-          "name": "Identifiant du groupe",
-          "description": "UUID du groupe à désactiver."
-        }
-      }
-    },
-    "set_active_schedule": {
-      "name": "Définir le planning actif",
-      "description": "Définit le planning actif dans un groupe exclusif.",
-      "fields": {
-        "group_id": {
-          "name": "Identifiant du groupe",
-          "description": "UUID du groupe."
-        },
-        "schedule_id": {
-          "name": "Identifiant du planning",
-          "description": "UUID du planning à activer."
-        }
-      }
-    },
     "set_override": {
       "name": "Définir un override",
       "description": "Définit un override temporaire.",
@@ -223,7 +168,7 @@
     },
     "run_actions": {
       "name": "Exécuter les actions",
-      "description": "Exécute immédiatement les actions de la plage horaire active (comme scheduler.run_action). Sans schedule_id : plage résolue globalement (groupes + plannings orphelins). Avec schedule_id : plage active pour ce planning uniquement.",
+      "description": "Exécute immédiatement les actions des plages actives concernées (comme scheduler.run_action). Sans schedule_id : parmi tous les plannings activés, exécute chaque plage active dont l’heure de début est la plus tardive parmi les plages qui couvrent l’instant (plusieurs plannings avec le même début : toutes les actions sont enchaînées). Avec schedule_id : uniquement la plage active de ce planning.",
       "fields": {
         "schedule_id": {
           "name": "Identifiant du planning",

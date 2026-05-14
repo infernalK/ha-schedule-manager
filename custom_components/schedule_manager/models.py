@@ -95,30 +95,6 @@ def schedule_from_dict(data: Dict[str, Any]) -> "Schedule":
     )
 
 
-def group_to_dict(group: "ScheduleGroup") -> Dict[str, Any]:
-    """Serialize a schedule group for entity attributes or storage."""
-    return {
-        "id": group.id,
-        "name": group.name,
-        "schedules": group.schedules,
-        "exclusive": group.exclusive,
-        "active_schedule": group.active_schedule,
-        "enabled": group.enabled,
-    }
-
-
-def group_from_dict(data: Dict[str, Any]) -> "ScheduleGroup":
-    """Deserialize a schedule group from storage."""
-    return ScheduleGroup(
-        id=data.get("id", str(uuid.uuid4())),
-        name=data["name"],
-        schedules=data.get("schedules", []),
-        exclusive=data.get("exclusive", False),
-        active_schedule=data.get("active_schedule"),
-        enabled=data.get("enabled", True),
-    )
-
-
 def override_to_dict(override: "Override") -> Dict[str, Any]:
     """Serialize an override for storage."""
     return {
@@ -178,18 +154,6 @@ class Schedule:
     time_blocks: List[TimeBlock] = field(default_factory=list)
     enabled: bool = True
     repeat_days: List[int] = field(default_factory=lambda: list(range(7)))  # 0=Monday, 6=Sunday
-    id: str = field(default_factory=lambda: str(uuid.uuid4()))
-
-
-@dataclass
-class ScheduleGroup:
-    """Represents a group of schedules."""
-
-    name: str
-    schedules: List[str] = field(default_factory=list)  # List of schedule IDs
-    exclusive: bool = False  # If true, only one schedule active at a time
-    active_schedule: Optional[str] = None
-    enabled: bool = True
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
 
 

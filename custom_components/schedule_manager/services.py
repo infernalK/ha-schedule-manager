@@ -11,7 +11,7 @@ from homeassistant.util import dt as dt_util
 
 from .action_executor import async_run_block_actions
 from .engine import ScheduleEngine
-from .models import BlockAction, Override, Schedule, ScheduleGroup, TimeBlock
+from .models import BlockAction, Override, Schedule, TimeBlock
 from .storage import ScheduleManagerStorage
 from .const import DOMAIN
 
@@ -34,18 +34,16 @@ async def _persist(hass: HomeAssistant, storage: ScheduleManagerStorage) -> None
 
 
 async def _notify_schedule_enabled_then_refresh(
-    hass: HomeAssistant, schedule_id: str
+    hass: HomeAssistant, _schedule_id: str
 ) -> None:
-    """Exécute le créneau courant pour ce planning activé, puis rafraîchit le coordonnateur.
+    """Après ``async_save`` : un rafraîchissement du coordinateur exécute tous les créneaux actifs pertinents.
 
-    À appeler après ``async_save``, et avant tout ``async_refresh`` « générique » :
-    sinon ``_async_update_data`` enregistre déjà ``_last_executed_slot_key`` et
-    ``async_notify_schedule_enabled`` sort sans appeler les services (toggle / activer inopérant).
+    ``schedule_id`` est conservé pour la signature (appels existants) ; la logique d’exécution est
+    centralisée dans ``ScheduleManagerCoordinator._async_update_data``.
     """
     coordinator = hass.data.get(DOMAIN, {}).get("coordinator")
     if coordinator is None:
         return
-    await coordinator.async_notify_schedule_enabled(schedule_id)
     await coordinator.async_refresh()
 
 
@@ -69,7 +67,7 @@ async def async_sync_planning_entities(hass: HomeAssistant) -> None:
 async def async_delete_schedule(
     hass: HomeAssistant, storage: ScheduleManagerStorage, schedule_id: str
 ) -> bool:
-    """Supprime un planning, met à jour les groupes et retire l’entité interrupteur.
+    """Supprime un planning et retire l’entité interrupteur.
 
     Retourne True si le planning existait encore dans le stockage.
     Toujours déclenche persist + sync pour retirer une entité orpheline du registre.
@@ -84,7 +82,6 @@ async def async_delete_schedule(
         )
 
     existed = schedule_id in storage.get_schedules()
-    storage.detach_schedule_from_groups(schedule_id)
     if existed:
         storage.remove_schedule(schedule_id)
     _invalidate_coordinator_slot_marker(hass)
@@ -98,11 +95,6 @@ SERVICE_UPDATE_SCHEDULE = "update_schedule"
 SERVICE_ENABLE_SCHEDULE = "enable_schedule"
 SERVICE_DISABLE_SCHEDULE = "disable_schedule"
 SERVICE_DELETE_SCHEDULE = "delete_schedule"
-
-SERVICE_CREATE_GROUP = "create_group"
-SERVICE_ENABLE_GROUP = "enable_group"
-SERVICE_DISABLE_GROUP = "disable_group"
-SERVICE_SET_ACTIVE_SCHEDULE = "set_active_schedule"
 
 SERVICE_SET_OVERRIDE = "set_override"
 SERVICE_CLEAR_OVERRIDE = "clear_override"
@@ -202,17 +194,6 @@ ENABLE_DISABLE_SCHEMA = vol.Schema({
 })
 
 DELETE_SCHEMA = vol.Schema({
-    vol.Required("schedule_id"): cv.string,
-})
-
-CREATE_GROUP_SCHEMA = vol.Schema({
-    vol.Required("name"): cv.string,
-    vol.Optional("schedules"): vol.All(cv.ensure_list, [cv.string]),
-    vol.Optional("exclusive"): cv.boolean,
-})
-
-SET_ACTIVE_SCHEMA = vol.Schema({
-    vol.Required("group_id"): cv.string,
     vol.Required("schedule_id"): cv.string,
 })
 
@@ -337,37 +318,6 @@ async def async_setup_services(hass: HomeAssistant, storage: ScheduleManagerStor
         schedule_id = call.data["schedule_id"]
         await async_delete_schedule(hass, storage, schedule_id)
 
-    async def handle_create_group(call: ServiceCall) -> None:
-        group = ScheduleGroup(
-            name=call.data["name"],
-            schedules=call.data.get("schedules", []),
-            exclusive=call.data.get("exclusive", False),
-        )
-        storage.add_group(group)
-        await _persist(hass, storage)
-
-    async def handle_enable_group(call: ServiceCall) -> None:
-        group_id = call.data["group_id"]
-        groups = storage.get_groups()
-        if group_id in groups:
-            groups[group_id].enabled = True
-            await _persist(hass, storage)
-
-    async def handle_disable_group(call: ServiceCall) -> None:
-        group_id = call.data["group_id"]
-        groups = storage.get_groups()
-        if group_id in groups:
-            groups[group_id].enabled = False
-            await _persist(hass, storage)
-
-    async def handle_set_active_schedule(call: ServiceCall) -> None:
-        group_id = call.data["group_id"]
-        schedule_id = call.data["schedule_id"]
-        groups = storage.get_groups()
-        if group_id in groups:
-            groups[group_id].active_schedule = schedule_id
-            await _persist(hass, storage)
-
     async def handle_set_override(call: ServiceCall) -> None:
         override = Override(
             target_entity=call.data["target_entity"],
@@ -387,38 +337,42 @@ async def async_setup_services(hass: HomeAssistant, storage: ScheduleManagerStor
     async def handle_run_actions(call: ServiceCall) -> None:
         """Déclenche les actions de la plage active (comme scheduler.run_action)."""
         schedules = storage.get_schedules()
-        groups = storage.get_groups()
         engine = ScheduleEngine()
         at = dt_util.now()
         sid = call.data.get("schedule_id")
-        block = None
         if sid:
             sch = schedules.get(sid)
             if sch is None:
                 raise ServiceValidationError(f"Planning inconnu : {sid}")
             block = engine.get_current_time_block(sch, at)
-        else:
-            slot = engine.resolve_group_action(groups, schedules, at)
-            block = slot.block if slot else None
-        if block is None:
+            if block is None:
+                raise ServiceValidationError(
+                    "Aucune plage horaire active à cet instant pour ce planning."
+                )
+            ok = await async_run_block_actions(hass, block)
+            if not ok:
+                raise ServiceValidationError(
+                    "Les entités ciblées ne sont pas encore disponibles ou un appel de service a échoué."
+                )
+            return
+
+        slots = engine.resolve_active_slots_for_execution(schedules, at)
+        if not slots:
             raise ServiceValidationError(
-                "Aucune plage horaire active à cet instant pour ce planning (ou ce groupe)."
+                "Aucune plage horaire active à cet instant (tous plannings)."
             )
-        ok = await async_run_block_actions(hass, block)
-        if not ok:
-            raise ServiceValidationError(
-                "Les entités ciblées ne sont pas encore disponibles ou un appel de service a échoué."
-            )
+        for sl in slots:
+            ok = await async_run_block_actions(hass, sl.block)
+            if not ok:
+                raise ServiceValidationError(
+                    "Les entités ciblées ne sont pas encore disponibles ou un appel de service a échoué."
+                )
 
     hass.services.async_register(DOMAIN, SERVICE_CREATE_SCHEDULE, handle_create_schedule, schema=CREATE_SCHEDULE_SCHEMA)
     hass.services.async_register(DOMAIN, SERVICE_UPDATE_SCHEDULE, handle_update_schedule, schema=UPDATE_SCHEDULE_SCHEMA)
     hass.services.async_register(DOMAIN, SERVICE_ENABLE_SCHEDULE, handle_enable_schedule, schema=ENABLE_DISABLE_SCHEMA)
     hass.services.async_register(DOMAIN, SERVICE_DISABLE_SCHEDULE, handle_disable_schedule, schema=ENABLE_DISABLE_SCHEMA)
     hass.services.async_register(DOMAIN, SERVICE_DELETE_SCHEDULE, handle_delete_schedule, schema=DELETE_SCHEMA)
-    hass.services.async_register(DOMAIN, SERVICE_CREATE_GROUP, handle_create_group, schema=CREATE_GROUP_SCHEMA)
-    hass.services.async_register(DOMAIN, SERVICE_ENABLE_GROUP, handle_enable_group, schema=vol.Schema({vol.Required("group_id"): cv.string}))
-    hass.services.async_register(DOMAIN, SERVICE_DISABLE_GROUP, handle_disable_group, schema=vol.Schema({vol.Required("group_id"): cv.string}))
-    hass.services.async_register(DOMAIN, SERVICE_SET_ACTIVE_SCHEDULE, handle_set_active_schedule, schema=SET_ACTIVE_SCHEMA)
     hass.services.async_register(DOMAIN, SERVICE_SET_OVERRIDE, handle_set_override, schema=SET_OVERRIDE_SCHEMA)
     hass.services.async_register(DOMAIN, SERVICE_CLEAR_OVERRIDE, handle_clear_override, schema=CLEAR_OVERRIDE_SCHEMA)
     hass.services.async_register(DOMAIN, SERVICE_RUN_ACTIONS, handle_run_actions, schema=RUN_ACTIONS_SCHEMA)

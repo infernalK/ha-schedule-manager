@@ -13,6 +13,5 @@ async def async_get_config_entry_diagnostics(
     storage = hass.data[DOMAIN]["storage"]
     return {
         "schedules": storage.get_schedules(),
-        "groups": storage.get_groups(),
         "overrides": storage.get_overrides(),
     }

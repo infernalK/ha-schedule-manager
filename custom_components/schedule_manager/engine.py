@@ -1,8 +1,9 @@
 """Engine for evaluating schedules and determining actions."""
 
 from datetime import datetime, time as dt_time, timedelta
-from typing import Optional, Tuple, Dict, Set
-from .models import ActiveTimeSlot, Schedule, ScheduleGroup, TimeBlock
+from typing import Dict, List, Optional, Tuple
+
+from .models import ActiveTimeSlot, Schedule, TimeBlock
 
 
 class ScheduleEngine:
@@ -69,70 +70,37 @@ class ScheduleEngine:
         return None
 
     @staticmethod
-    def _schedule_ids_in_enabled_groups(groups: Dict[str, ScheduleGroup]) -> Set[str]:
-        """Plannings référencés par au moins un groupe activé (réservés à la logique groupe)."""
-        out: Set[str] = set()
-        for group in groups.values():
-            if group.enabled:
-                out.update(group.schedules)
-        return out
+    def resolve_active_slots_for_execution(
+        schedules: Dict[str, Schedule], current_time: datetime
+    ) -> List[ActiveTimeSlot]:
+        """Tous les créneaux à exécuter à l’instant : plages actives dont le début est le plus tardif.
 
-    @staticmethod
-    def resolve_group_action(
-        groups: Dict[str, ScheduleGroup], schedules: Dict[str, Schedule], current_time: datetime
-    ) -> Optional[ActiveTimeSlot]:
-        """Résout la plage active : groupes d’abord, puis plannings hors groupe (cas carte Lovelace sans groupe)."""
-        for group in groups.values():
-            if not group.enabled:
-                continue
-
-            active_schedules = []
-            for sched_id in group.schedules:
-                if sched_id not in schedules:
-                    continue
-                schedule = schedules[sched_id]
-                # Exclusif : si aucun planning actif n’est choisi, on n’exclut personne (sinon tout était ignoré).
-                if (
-                    group.exclusive
-                    and group.active_schedule is not None
-                    and group.active_schedule != sched_id
-                ):
-                    continue
-                block = ScheduleEngine.get_current_time_block(schedule, current_time)
-                if block:
-                    active_schedules.append((sched_id, schedule, block))
-
-            if active_schedules:
-                # Priorité : début de plage le plus tardif, puis ordre dans le groupe (dernier = plus prioritaire à égalité).
-                def _group_slot_priority(t: tuple[str, Schedule, TimeBlock]) -> tuple:
-                    sid, _sch, blk = t
-                    try:
-                        ord_idx = group.schedules.index(sid)
-                    except ValueError:
-                        ord_idx = -1
-                    return (blk.start_time, ord_idx)
-
-                sid, _sch, blk = max(active_schedules, key=_group_slot_priority)
-                return ActiveTimeSlot(schedule_id=sid, block=blk)
-
-        # Aucun groupe actif ne couvre l’instant : évaluer les plannings non rattachés à un groupe activé.
-        blocked_ids = ScheduleEngine._schedule_ids_in_enabled_groups(groups)
-        candidates: list[tuple[ActiveTimeSlot, int]] = []
-        for i, (sid, schedule) in enumerate(schedules.items()):
-            if sid in blocked_ids:
-                continue
+        Si deux plannings ont une plage qui commence à la même heure (et que c’est le début le plus
+        tardif parmi les plages actuellement couvrant l’instant), les deux sont retournés — leurs
+        actions seront enchaînées. Ordre stable : ``schedule_id`` croissant.
+        """
+        candidates: List[ActiveTimeSlot] = []
+        for sid, schedule in schedules.items():
             block = ScheduleEngine.get_current_time_block(schedule, current_time)
             if block:
-                candidates.append(
-                    (ActiveTimeSlot(schedule_id=sid, block=block), i)
-                )
+                candidates.append(ActiveTimeSlot(schedule_id=sid, block=block))
         if not candidates:
-            return None
-        return max(candidates, key=lambda x: (x[0].block.start_time, x[1]))[0]
+            return []
+        max_st = max(s.block.start_time for s in candidates)
+        same_start = [s for s in candidates if s.block.start_time == max_st]
+        same_start.sort(key=lambda s: s.schedule_id)
+        return same_start
+
+    @staticmethod
+    def resolve_active_slot(
+        schedules: Dict[str, Schedule], current_time: datetime
+    ) -> Optional[ActiveTimeSlot]:
+        """Premier créneau actif (affichage / compat) — voir ``resolve_active_slots_for_execution``."""
+        slots = ScheduleEngine.resolve_active_slots_for_execution(schedules, current_time)
+        return slots[0] if slots else None
 
     @staticmethod
     def compute_next_schedule_event(
-        groups: Dict[str, ScheduleGroup],
         schedules: Dict[str, Schedule],
         now: datetime,
     ) -> Optional[datetime]:
@@ -140,10 +108,7 @@ class ScheduleEngine:
 
         Inspiré de l’attribut ``next_trigger`` du scheduler-component : permet un réveil ponctuel
         au lieu de ne compter que sur l’intervalle du coordonnateur.
-        ``groups`` est réservé à une future restriction ; aujourd’hui tous les plannings activés
-        contribuent aux bornes temporelles.
         """
-        _ = groups  # extension future (p. ex. ignorer plannings exclus)
         tzinfo = now.tzinfo
         if tzinfo is None:
             raise ValueError("now must be timezone-aware")
