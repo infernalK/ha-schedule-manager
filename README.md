@@ -1,76 +1,123 @@
-# Schedule Manager Integration
+# Schedule Manager — intégration Home Assistant
 
-Intégration Home Assistant pour des plannings à créneaux et actions (ex. climat).
+Cette extension ajoute à Home Assistant des **plannings** : vous définissez des **créneaux** (par ex. de 7 h à 9 h) et ce qui doit se passer à ce moment-là (chauffage, lumières, scènes, etc.).
 
-## Intégration et carte Lovelace
+---
 
-Deux éléments distincts, complémentaires :
+## À quoi ça sert ? (exemple simple)
 
-| Composant | Rôle |
-|-----------|------|
-| **Cette intégration** (`schedule_manager`) | Stocke les plannings, exécute les actions aux horaires prévus, expose des **services** et des **entités** (capteur hub, interrupteurs par planning). |
-| **[Schedule Manager Card](https://github.com/infernalK/ha-schedule-manager-card)** | Interface sur le tableau de bord : elle **lit** l’attribut `schedules` du **capteur hub** et **appelle** les services `schedule_manager.*` pour créer ou modifier des plannings, activer / désactiver, gérer les plages, etc. |
+Vous voulez que le mode *Confort* du radiateur du salon soit activé **tous les matins de 7 h à 9 h**. Vous créez un **planning** (ex. « Matin salon »), puis vous y ajoutez une **plage** avec l’heure de début, l’heure de fin et l’action voulue. Home Assistant s’en occupe automatiquement aux horaires prévus.
 
-Sans la carte, vous pouvez tout faire via **Paramètres → Appareils et services** (création de planning) et les **services** / **automatisations**. La carte évite d’écrire du YAML pour les plages au quotidien.
+---
 
-## Installation
+## Ce dont vous avez besoin
 
-### Avec HACS (recommandé)
+- Une instance **Home Assistant** qui tourne déjà (vous savez ouvrir **Paramètres** et un **tableau de bord**).
+- Pour installer facilement sans copier de fichiers à la main : **[HACS](https://hacs.xyz/)** (optionnel mais recommandé).
 
-1. [HACS](https://hacs.xyz/) installé : **HACS → Intégrations personnalisées** (menu ⋮) → **Dépôt personnalisé** → URL `https://github.com/infernalK/ha-schedule-manager`, catégorie **Intégration** → **Ajouter**.
-2. **Télécharger** le dépôt, puis redémarrer Home Assistant si demandé.
-3. **Paramètres → Appareils et services → Ajouter une intégration** → *Schedule Manager*.
+---
 
-Pour un lien « Ajouter à HACS » depuis la doc : [générer un lien my.home-assistant.io](https://my.home-assistant.io/create-link/?redirect=hacs_repository) avec l’URL du dépôt ci-dessus.
+## Deux choses à installer pour une utilisation confortable
 
-### Manuellement
+| Quoi ? | Rôle en une phrase |
+|--------|-------------------|
+| **Cette intégration** (dépôt *ha-schedule-manager*) | Elle **enregistre** vos plannings, **déclenche** les actions aux bonnes heures et crée les **interrupteurs** et le **capteur d’état** dans Home Assistant. |
+| **[Schedule Manager Card](https://github.com/infernalK/ha-schedule-manager-card)** (autre dépôt) | Une **carte** sur votre tableau de bord pour **voir** et **modifier** les plannings à la souris, sans tout écrire en code. |
 
-1. Copiez `custom_components/schedule_manager` dans le dossier `custom_components` de Home Assistant.
-2. Redémarrez Home Assistant.
-3. **Paramètres → Appareils et services → Ajouter une intégration** → recherchez *Schedule Manager*.
+**Important :** la carte **ne suffit pas** seule. Il faut d’abord installer et ajouter **Schedule Manager** comme intégration (étapes ci-dessous). Ensuite seulement, vous installez la carte sur le même Home Assistant.
 
-### « Ajouter un pont » vs « Ajouter un service / appareil »
+Si vous n’installez pas la carte, vous pouvez quand même créer des plannings depuis **Paramètres** et, pour les horaires détaillés, utiliser les **outils pour développeurs** ou des **automatisations** (voir plus bas).
 
-Le manifeste utilise `integration_type: "service"` : ce type correspond à une **intégration sans matériel physique** (logique + stockage local). Le libellé exact dépend de la version et de la langue de l’interface Home Assistant.
+---
 
-Les entités sont regroupées sous **un appareil logique** « Schedule Manager » (capteur d’état + commutateur), visible dans l’onglet **Appareils** lié à la passerelle de configuration.
+## Installation (méthode simple : HACS)
 
-## Plannings : ajout, suppression, plages horaires
+1. Ouvrez **HACS** dans la barre latérale de Home Assistant.
+2. Menu **⋮** (trois points) → **Dépôts personnalisés** (ou équivalent selon votre langue).
+3. Collez l’adresse : `https://github.com/infernalK/ha-schedule-manager`  
+   - Catégorie : **Intégration** → **Ajouter**.
+4. Revenez dans HACS → section **Intégrations** → cherchez **Schedule Manager** → **Télécharger**.
+5. Si Home Assistant le demande, **redémarrez** la machine ou le conteneur.
+6. Allez dans **Paramètres** → **Appareils et services** → bouton **Ajouter une intégration** (en bas à droite).
+7. Cherchez **Schedule Manager** et suivez l’assistant jusqu’au bout (**Terminer** ou **Ignorer et terminer** pour les noms de pièces, ce n’est pas bloquant).
 
-### Via l’intégration (recommandé pour **créer** un planning)
+Lien utile pour ouvrir HACS depuis la doc : [créer un lien my.home-assistant.io vers HACS](https://my.home-assistant.io/create-link/?redirect=hacs_repository) en collant l’URL du dépôt ci-dessus.
 
-1. **Paramètres → Appareils et services → Schedule Manager**.
-2. Ouvrez l’entrée d’intégration, puis **Configurer** (menu des trois points ou bouton équivalent).
-3. Choisissez **Créer un planning** / **Create schedule**, saisissez le **nom**, validez.
-4. Un **appareil** et un **interrupteur** pour ce planning apparaissent ; les **plages** se définissent ensuite sur le tableau de bord (carte) ou via `schedule_manager.update_schedule`.
+---
 
-### Via la carte Lovelace
+## Installation (méthode manuelle)
 
-Après installation de la [Schedule Manager Card](https://github.com/infernalK/ha-schedule-manager-card), vous pouvez :
+1. Copiez le dossier `custom_components/schedule_manager` à l’intérieur du dossier `config/custom_components/` de votre installation (à côté des autres extensions personnalisées).
+2. **Redémarrez** Home Assistant.
+3. **Paramètres** → **Appareils et services** → **Ajouter une intégration** → recherchez **Schedule Manager**.
 
-- créer un planning (nom) ;
-- **Supprimer** un planning ;
-- voir les **plages** (début, fin, type d’action, payload JSON) ;
-- **Retirer** une plage ;
-- **Ajouter une plage** (heures, type d’action, payload JSON — ex. climat : `set_preset_mode` et `{"preset_mode":"comfort"}`).
+---
 
-### Via les services (Automatisations / Outils de développement)
+## Après l’installation : où retrouver Schedule Manager ?
 
-| Service | Rôle |
-|--------|------|
-| `schedule_manager.create_schedule` | Créer un planning (`name` obligatoire ; `time_blocks`, `repeat_days` optionnels) |
-| `schedule_manager.update_schedule` | Modifier un planning : `schedule_id` obligatoire ; `name`, `enabled`, `repeat_days`, `time_blocks` (liste complète si vous modifiez les plages) |
-| `schedule_manager.delete_schedule` | Supprimer un planning (`schedule_id`) — **refusé** s’il ne reste qu’un seul planning (il faut en créer un autre avant). |
-| `schedule_manager.enable_schedule` / `disable_schedule` | Activer / désactiver |
-| `schedule_manager.run_actions` | Exécuter les actions de la plage active (optionnel : `schedule_id`) |
-| `schedule_manager.set_override` / `clear_override` | Forcer ou annuler un comportement temporaire (voir paramètres avancés de l’intégration) |
+- **Paramètres** → **Appareils et services** : vous devriez voir une tuile **Schedule Manager**.
+- En cliquant dessus, vous verrez un **appareil principal** « Schedule Manager » (avec un capteur et souvent un interrupteur global) et, plus tard, **un appareil par planning** que vous créerez (ex. « Matin salon ») avec son **interrupteur** pour activer ou désactiver ce planning.
 
-**Exemple YAML** — une plage avec **plusieurs actions** (services Home Assistant) :
+*Note :* selon la version de Home Assistant, l’assistant peut parler d’« ajouter un service » plutôt que d’un appareil physique — c’est normal, il n’y a pas de boîtier à brancher.
+
+---
+
+## Créer votre premier planning (sans la carte)
+
+1. **Paramètres** → **Appareils et services** → **Schedule Manager**.
+2. Cliquez sur la ligne de l’intégration, puis **Configurer** (menu **⋮** ou bouton selon l’interface).
+3. Choisissez **Créer un planning** (ou **Create schedule** en anglais).
+4. Donnez un **nom** clair (ex. « Chauffage matin ») et validez.
+
+À ce stade, le planning existe, mais les **plages horaires** se gèrent le plus souvent depuis la **carte Lovelace** (recommandé) ou via les **services** décrits plus bas si vous êtes à l’aise avec le YAML.
+
+---
+
+## Utiliser la carte pour les horaires (recommandé pour débuter)
+
+Installez la **[Schedule Manager Card](https://github.com/infernalK/ha-schedule-manager-card)** (voir le README de ce dépôt : installation HACS ou copie du fichier `.js`). Ensuite, sur un tableau de bord :
+
+1. Trois points **⋮** → **Modifier le tableau de bord**.
+2. **Ajouter une carte** → en bas, **Carte personnalisée** (ou saisie manuelle selon votre thème).
+3. Choisissez **Schedule Manager** si elle apparaît, ou collez le YAML minimal du README de la carte.
+
+Depuis la carte vous pourrez en général : **créer** un planning, **supprimer** un planning, **ajouter / retirer** des plages, **activer ou désactiver** un planning.
+
+---
+
+## Quelques mots de vocabulaire
+
+| Terme | Signification simple |
+|-------|----------------------|
+| **Planning** | Un ensemble de règles horaires (ex. « semaine bureau ») avec un nom. |
+| **Plage** (ou créneau) | Un intervalle dans la journée (début → fin) pendant lequel des **actions** sont prévues. |
+| **Action** | Une commande Home Assistant (allumer une lumière, régler le climat, etc.), souvent décrite par un **type de service** et des **données** (parfois en JSON dans l’interface avancée). |
+| **Capteur d’état** | Une « sonde » dans Home Assistant qui affiche un résumé ; ici il contient aussi des **informations détaillées** (attributs) que la carte lit pour afficher vos plannings. |
+| **Service** | Une action que Home Assistant peut lancer sur demande (automatisation, bouton, carte, etc.). Tous les services de cette extension commencent par `schedule_manager.`. |
+
+---
+
+## Services (pour utilisateurs à l’aise avec les automatisations / YAML)
+
+Ces actions sont aussi disponibles dans **Outils de développement** → **Services**. Les noms exacts peuvent être affichés en français dans l’interface selon votre langue.
+
+| Service (identifiant technique) | À quoi il sert |
+|--------------------------------|----------------|
+| `schedule_manager.create_schedule` | Créer un planning. Au minimum : un **nom**. |
+| `schedule_manager.update_schedule` | Modifier un planning existant (nom, plages, jours de répétition…). Il faut l’identifiant du planning (`schedule_id`). |
+| `schedule_manager.delete_schedule` | Supprimer un planning. **Impossible** s’il ne reste qu’un seul planning : créez-en un autre avant. |
+| `schedule_manager.enable_schedule` / `disable_schedule` | Activer ou désactiver un planning. |
+| `schedule_manager.run_actions` | Forcer l’exécution des actions du créneau actuel (utile pour tester). |
+| `schedule_manager.set_override` / `clear_override` | Options avancées (comportement temporaire) ; réglages dans **Configurer** → **Réglages avancés** de l’intégration. |
+
+**Où trouver `schedule_id` ?** Dans **Outils de développement** → **États**, ouvrez le **capteur** de l’appareil « Schedule Manager » (souvent nommé *État* / *Status* selon la langue). Dans les **attributs**, repérez `schedules` : chaque clé (suite de lettres et chiffres) est un `schedule_id`.
+
+**Exemple** — une plage avec deux actions :
 
 ```yaml
 service: schedule_manager.update_schedule
 data:
-  schedule_id: VOTRE_UUID_PLANNING
+  schedule_id: COLLEZ_ICI_VOTRE_UUID
   time_blocks:
     - start_time: "07:00:00"
       end_time: "09:00:00"
@@ -84,20 +131,20 @@ data:
             entity_id: light.cuisine
 ```
 
-L’ancien format avec `action_type` / `action_payload` directement sous la plage est encore accepté ; au chargement il est converti en une entrée dans `actions`.
+Un ancien format avec une seule action directement sur la plage est encore accepté ; il est converti automatiquement.
 
-Les identifiants `schedule_id` sont ceux affichés dans les **attributs** du capteur `schedules` (clés de l’objet).
+---
 
-## Entités et appareils
+## Entités : ce que vous verrez dans Home Assistant
 
-- **Appareil « Schedule Manager » (hub)** : capteur d’état (résumé + attributs pour la carte Lovelace) et commutateur générique.
-- **Un appareil par planning** : chaque planning apparaît comme **appareil séparé** (nom du planning), relié au hub via *via_device*. Il contient une **entité commutateur** avec le nom du planning : elle reflète **activé / désactivé** pour ce planning (équivalent aux services `enable_schedule` / `disable_schedule`).
+- **Appareil « Schedule Manager »** : contient le **capteur** utilisé par la carte (liste des plannings dans les attributs) et souvent un **interrupteur** global de planification.
+- **Un appareil par planning** : contient un **interrupteur** portant le nom du planning — **allumé** = planning actif, **éteint** = planning en pause (équivalent aux services activer / désactiver).
 
-Les plannings créés ou supprimés (carte, services, automatisations) ajoutent ou retirent automatiquement ces appareils / entités.
+**Nom du capteur pour la carte :** Home Assistant construit un identifiant du type `sensor.schedule_manager_…` en fonction de la **langue** de l’interface (ex. `sensor.schedule_manager_status` en anglais, souvent `sensor.schedule_manager_etat` en français). Si la carte ne trouve rien, ouvrez l’appareil hub **Schedule Manager** et choisissez le bon capteur dans l’**éditeur** de la carte ou ajoutez `status_entity: …` dans le YAML de la carte (voir README de la carte).
 
-**Capteur hub (données pour la carte)** : l’`entity_id` est dérivé du nom de l’appareil hub et du libellé traduit de l’entité « état » (ex. en interface **anglais** : `sensor.schedule_manager_status` ; en **français** : souvent `sensor.schedule_manager_etat`). Vérifiez dans **Paramètres → Appareils et services → Schedule Manager** l’entité capteur sous l’appareil hub, ou utilisez l’éditeur de la carte pour la sélectionner. Les interrupteurs par planning suivent le **nom** que vous leur avez donné (`switch.<slug_du_nom>`, etc.).
+---
 
 ## Notes pour les mainteneurs (HACS, marques)
 
-- **Marques (brands)** : pour figurer dans le catalogue HACS par défaut et les icônes dans l’UI, une PR sur [home-assistant/brands](https://github.com/home-assistant/brands) (`custom_integrations/schedule_manager/`). Tant que ce n’est pas fusionné, la CI du dépôt peut ignorer volontairement la vérification `brands` (voir `.github/workflows/ci.yml`).
-- **Description et topics GitHub** : **About** (roue dentée) → description courte et topics (`home-assistant`, `hacs`, `integration`, `schedule`, etc.) pour le validateur HACS ; vous pouvez alors retirer `topics` et `description` de `ignore` dans `.github/workflows/ci.yml`.
+- **Marques (brands)** : pour le catalogue HACS officiel et les icônes, contribution sur [home-assistant/brands](https://github.com/home-assistant/brands) (`custom_integrations/schedule_manager/`). La CI du dépôt peut ignorer `brands` tant que ce n’est pas fusionné (voir `.github/workflows/ci.yml`).
+- **Description et topics GitHub** : page du dépôt → **About** → description + topics (`home-assistant`, `hacs`, `integration`, `schedule`, …) pour le validateur HACS ; retirer ensuite `topics` / `description` de `ignore` dans `.github/workflows/ci.yml` si souhaité.
