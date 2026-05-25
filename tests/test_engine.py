@@ -160,6 +160,69 @@ def test_compute_next_schedule_event():
     assert nxt == datetime(2026, 5, 13, 17, 0, 0, tzinfo=timezone.utc)
 
 
+def test_disabled_schedule_excluded_from_execution():
+    """Planning désactivé : aucune plage retournée pour l’exécution."""
+    b = TimeBlock(
+        time(9, 0),
+        time(17, 0),
+        [BlockAction("light.turn_on", {}, id="a")],
+        id="b",
+    )
+    schedules = {"off": _sch("off", [b], enabled=False)}
+    now = datetime(2026, 5, 13, 12, 0, 0)
+    assert ScheduleEngine.resolve_active_slots_for_execution(schedules, now) == []
+    assert ScheduleEngine.get_current_time_block(schedules["off"], now) is None
+
+
+def test_resolve_slot_for_newly_enabled_schedule_when_not_in_batch():
+    """Réactivation : plage couvrant l’instant mais début plus tôt qu’un autre planning actif."""
+    wide = TimeBlock(
+        time(8, 0),
+        time(17, 0),
+        [BlockAction("light.turn_on", {}, id="w")],
+        id="bw",
+    )
+    narrow = TimeBlock(
+        time(10, 0),
+        time(12, 0),
+        [BlockAction("switch.turn_on", {}, id="n")],
+        id="bn",
+    )
+    schedules = {
+        "wide": _sch("wide", [wide]),
+        "narrow": _sch("narrow", [narrow]),
+    }
+    now = datetime(2026, 5, 13, 11, 0, 0)
+    batch = ScheduleEngine.resolve_active_slots_for_execution(schedules, now)
+    assert len(batch) == 1
+    assert batch[0].schedule_id == "narrow"
+
+    slot = ScheduleEngine.resolve_slot_for_newly_enabled_schedule(
+        schedules, "wide", now
+    )
+    assert slot is not None
+    assert slot.schedule_id == "wide"
+    assert slot.block.id == "bw"
+
+
+def test_resolve_slot_for_newly_enabled_schedule_skips_when_in_batch():
+    """Si le planning est déjà dans le lot coordinateur, pas d’exécution redondante."""
+    b = TimeBlock(
+        time(9, 0),
+        time(17, 0),
+        [BlockAction("light.turn_on", {}, id="a")],
+        id="b",
+    )
+    schedules = {"solo": _sch("solo", [b])}
+    now = datetime(2026, 5, 13, 12, 0, 0)
+    assert (
+        ScheduleEngine.resolve_slot_for_newly_enabled_schedule(
+            schedules, "solo", now
+        )
+        is None
+    )
+
+
 def test_get_current_time_block_max_start_wins_on_overlap():
     """Chevauchement : le créneau actif = début le plus tardif (indépendant de l’ordre en JSON)."""
     b_wide = TimeBlock(

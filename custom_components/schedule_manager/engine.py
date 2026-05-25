@@ -100,6 +100,29 @@ class ScheduleEngine:
         return slots[0] if slots else None
 
     @staticmethod
+    def resolve_slot_for_newly_enabled_schedule(
+        schedules: Dict[str, Schedule],
+        schedule_id: str,
+        current_time: datetime,
+    ) -> Optional[ActiveTimeSlot]:
+        """Plage à exécuter immédiatement quand un planning vient d’être activé.
+
+        Le coordinateur n’exécute que les plages au début le plus tardif parmi les plannings
+        actifs. Un planning réactivé peut avoir une plage couvrant l’instant mais un début
+        plus tôt qu’un autre planning — il faut alors lancer ses actions explicitement.
+        """
+        sch = schedules.get(schedule_id)
+        if sch is None or not sch.enabled:
+            return None
+        block = ScheduleEngine.get_current_time_block(sch, current_time)
+        if block is None:
+            return None
+        batch = ScheduleEngine.resolve_active_slots_for_execution(schedules, current_time)
+        if any(slot.schedule_id == schedule_id for slot in batch):
+            return None
+        return ActiveTimeSlot(schedule_id=schedule_id, block=block)
+
+    @staticmethod
     def compute_next_schedule_event(
         schedules: Dict[str, Schedule],
         now: datetime,

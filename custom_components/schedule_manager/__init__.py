@@ -13,6 +13,7 @@ from homeassistant.helpers.start import async_at_started
 from .const import DOMAIN, PLATFORMS
 from .storage import ScheduleManagerStorage
 from .coordinator import ScheduleManagerCoordinator
+from .name_sync import async_setup_schedule_name_sync
 from .services import async_setup_services, async_delete_schedule
 
 _LOGGER = logging.getLogger(__name__)
@@ -87,6 +88,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Set up platforms
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    async_setup_schedule_name_sync(hass, entry, storage)
 
     # Le premier cycle a souvent lieu avant l’enregistrement des CoordinatorEntity :
     # sans listener, l’intervalle 60 s du coordinateur ne part pas (voir DataUpdateCoordinator).

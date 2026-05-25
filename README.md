@@ -141,10 +141,3 @@ Un ancien format avec une seule action directement sur la plage est encore accep
 - **Un appareil par planning** : contient un **interrupteur** portant le nom du planning — **allumé** = planning actif, **éteint** = planning en pause (équivalent aux services activer / désactiver).
 
 **Nom du capteur pour la carte :** Home Assistant construit un identifiant du type `sensor.schedule_manager_…` en fonction de la **langue** de l’interface (ex. `sensor.schedule_manager_status` en anglais, souvent `sensor.schedule_manager_etat` en français). Si la carte ne trouve rien, ouvrez l’appareil hub **Schedule Manager** et choisissez le bon capteur dans l’**éditeur** de la carte ou ajoutez `status_entity: …` dans le YAML de la carte (voir README de la carte).
-
----
-
-## Notes pour les mainteneurs (HACS, marques)
-
-- **Marques (brands)** : pour le catalogue HACS officiel et les icônes, contribution sur [home-assistant/brands](https://github.com/home-assistant/brands) (`custom_integrations/schedule_manager/`). La CI du dépôt peut ignorer `brands` tant que ce n’est pas fusionné (voir `.github/workflows/ci.yml`).
-- **Description et topics GitHub** : page du dépôt → **About** → description + topics (`home-assistant`, `hacs`, `integration`, `schedule`, …) pour le validateur HACS ; retirer ensuite `topics` / `description` de `ignore` dans `.github/workflows/ci.yml` si souhaité.

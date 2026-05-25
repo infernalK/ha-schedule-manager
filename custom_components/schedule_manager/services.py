@@ -33,14 +33,32 @@ async def _persist(hass: HomeAssistant, storage: ScheduleManagerStorage) -> None
         await coordinator.async_refresh()
 
 
-async def _notify_schedule_enabled_then_refresh(
-    hass: HomeAssistant, _schedule_id: str
+async def _run_newly_enabled_schedule_actions(
+    hass: HomeAssistant,
+    storage: ScheduleManagerStorage,
+    schedule_id: str,
 ) -> None:
-    """Après ``async_save`` : un rafraîchissement du coordinateur exécute tous les créneaux actifs pertinents.
+    """Exécute la plage courante du planning activé si le coordinateur ne la couvrirait pas."""
+    schedules = storage.get_schedules()
+    slot = ScheduleEngine.resolve_slot_for_newly_enabled_schedule(
+        schedules, schedule_id, dt_util.now()
+    )
+    if slot is None:
+        return
+    ok = await async_run_block_actions(hass, slot.block)
+    if not ok:
+        coordinator = hass.data.get(DOMAIN, {}).get("coordinator")
+        if coordinator is not None:
+            coordinator._schedule_deferred_refresh()
 
-    ``schedule_id`` est conservé pour la signature (appels existants) ; la logique d’exécution est
-    centralisée dans ``ScheduleManagerCoordinator._async_update_data``.
-    """
+
+async def _notify_schedule_enabled_then_refresh(
+    hass: HomeAssistant, schedule_id: str
+) -> None:
+    """Après activation : plage immédiate du planning puis cycle coordinateur."""
+    storage = hass.data.get(DOMAIN, {}).get("storage")
+    if storage is not None:
+        await _run_newly_enabled_schedule_actions(hass, storage, schedule_id)
     coordinator = hass.data.get(DOMAIN, {}).get("coordinator")
     if coordinator is None:
         return
@@ -289,13 +307,11 @@ async def async_setup_services(hass: HomeAssistant, storage: ScheduleManagerStor
             invalidate = True
         if invalidate:
             _invalidate_coordinator_slot_marker(hass)
-        await storage.async_save()
         if enabled_turned_on:
+            await storage.async_save()
             await _notify_schedule_enabled_then_refresh(hass, schedule_id)
         else:
-            coordinator = hass.data.get(DOMAIN, {}).get("coordinator")
-            if coordinator is not None:
-                await coordinator.async_refresh()
+            await _persist(hass, storage)
 
     async def handle_enable_schedule(call: ServiceCall) -> None:
         schedule_id = call.data["schedule_id"]
