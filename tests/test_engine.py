@@ -223,6 +223,35 @@ def test_resolve_slot_for_newly_enabled_schedule_skips_when_in_batch():
     )
 
 
+def test_resolve_all_enabled_active_slots_at_startup():
+    """Au boot : chaque planning activé avec plage courante, pas seulement latest-start."""
+    wide = TimeBlock(
+        time(8, 0),
+        time(17, 0),
+        [BlockAction("light.turn_on", {}, id="w")],
+        id="bw",
+    )
+    narrow = TimeBlock(
+        time(10, 0),
+        time(12, 0),
+        [BlockAction("switch.turn_on", {}, id="n")],
+        id="bn",
+    )
+    schedules = {
+        "wide": _sch("wide", [wide]),
+        "narrow": _sch("narrow", [narrow]),
+        "off": _sch("off", [wide], enabled=False),
+    }
+    now = datetime(2026, 5, 13, 11, 0, 0)
+    batch = ScheduleEngine.resolve_active_slots_for_execution(schedules, now)
+    assert len(batch) == 1
+    assert batch[0].schedule_id == "narrow"
+
+    all_active = ScheduleEngine.resolve_all_enabled_active_slots(schedules, now)
+    assert len(all_active) == 2
+    assert [s.schedule_id for s in all_active] == ["narrow", "wide"]
+
+
 def test_get_current_time_block_max_start_wins_on_overlap():
     """Chevauchement : le créneau actif = début le plus tardif (indépendant de l’ordre en JSON)."""
     b_wide = TimeBlock(

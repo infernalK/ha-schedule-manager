@@ -42,7 +42,6 @@ class SchedulePlanningSwitchEntity(CoordinatorEntity, SwitchEntity):
         self._attr_name = sch.name
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, f"{self._entry.entry_id}_{self._schedule_id}")},
-            name=sch.name,
             manufacturer="Schedule Manager",
             via_device=(DOMAIN, self._entry.entry_id),
         )
@@ -125,6 +124,19 @@ class SchedulePlanningRegistry:
 
         for sid in current - tracked:
             await self._add_one(sid)
+
+        for sid in current & tracked:
+            entity = self._entities[sid]
+            entity._apply_schedule_attrs()
+            entity.async_write_ha_state()
+
+    async def async_refresh_schedule_attrs(self, schedule_id: str) -> None:
+        """Met à jour le nom affiché de l'interrupteur après changement dans le stockage."""
+        entity = self._entities.get(schedule_id)
+        if entity is None:
+            return
+        entity._apply_schedule_attrs()
+        entity.async_write_ha_state()
 
     @callback
     def coordinator_updated(self) -> None:

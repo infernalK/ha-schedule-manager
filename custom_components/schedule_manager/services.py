@@ -12,6 +12,7 @@ from homeassistant.util import dt as dt_util
 from .action_executor import async_run_block_actions
 from .engine import ScheduleEngine
 from .models import BlockAction, Override, Schedule, TimeBlock
+from .name_sync import async_apply_schedule_name_from_storage
 from .storage import ScheduleManagerStorage
 from .const import DOMAIN
 
@@ -33,36 +34,41 @@ async def _persist(hass: HomeAssistant, storage: ScheduleManagerStorage) -> None
         await coordinator.async_refresh()
 
 
-async def _run_newly_enabled_schedule_actions(
+async def _run_enabled_schedule_actions(
     hass: HomeAssistant,
     storage: ScheduleManagerStorage,
     schedule_id: str,
-) -> None:
-    """Exécute la plage courante du planning activé si le coordinateur ne la couvrirait pas."""
+) -> bool:
+    """Exécute la plage courante d’un planning qui vient d’être activé (carte ou interrupteur)."""
+    if not storage.is_scheduling_enabled():
+        return False
     schedules = storage.get_schedules()
-    slot = ScheduleEngine.resolve_slot_for_newly_enabled_schedule(
-        schedules, schedule_id, dt_util.now()
-    )
-    if slot is None:
-        return
-    ok = await async_run_block_actions(hass, slot.block)
+    sch = schedules.get(schedule_id)
+    if sch is None or not sch.enabled:
+        return False
+    block = ScheduleEngine.get_current_time_block(sch, dt_util.now())
+    if block is None:
+        return False
+    ok = await async_run_block_actions(hass, block)
     if not ok:
         coordinator = hass.data.get(DOMAIN, {}).get("coordinator")
         if coordinator is not None:
             coordinator._schedule_deferred_refresh()
+    return ok
 
 
 async def _notify_schedule_enabled_then_refresh(
     hass: HomeAssistant, schedule_id: str
 ) -> None:
-    """Après activation : plage immédiate du planning puis cycle coordinateur."""
+    """Après activation : exécuter la plage courante puis mettre à jour le capteur / la carte."""
     storage = hass.data.get(DOMAIN, {}).get("storage")
+    executed_ok = False
     if storage is not None:
-        await _run_newly_enabled_schedule_actions(hass, storage, schedule_id)
+        executed_ok = await _run_enabled_schedule_actions(hass, storage, schedule_id)
     coordinator = hass.data.get(DOMAIN, {}).get("coordinator")
     if coordinator is None:
         return
-    await coordinator.async_refresh()
+    await coordinator.async_refresh_after_enable(sync_marker=executed_ok)
 
 
 async def async_persist(hass: HomeAssistant, storage: ScheduleManagerStorage) -> None:
@@ -293,8 +299,12 @@ async def async_setup_services(hass: HomeAssistant, storage: ScheduleManagerStor
         sch = schedules[schedule_id]
         invalidate = False
         enabled_turned_on = False
+        name_updated = False
         if "name" in call.data:
-            sch.name = call.data["name"]
+            new_name = str(call.data["name"]).strip()
+            if new_name and new_name != sch.name:
+                sch.name = new_name
+                name_updated = True
         if "enabled" in call.data:
             enabled_turned_on = not sch.enabled and bool(call.data["enabled"])
             sch.enabled = call.data["enabled"]
@@ -312,6 +322,12 @@ async def async_setup_services(hass: HomeAssistant, storage: ScheduleManagerStor
             await _notify_schedule_enabled_then_refresh(hass, schedule_id)
         else:
             await _persist(hass, storage)
+        if name_updated:
+            entry_id = hass.data.get(DOMAIN, {}).get("config_entry_id")
+            if entry_id:
+                await async_apply_schedule_name_from_storage(
+                    hass, entry_id, schedule_id, sch.name
+                )
 
     async def handle_enable_schedule(call: ServiceCall) -> None:
         schedule_id = call.data["schedule_id"]

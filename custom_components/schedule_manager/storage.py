@@ -10,6 +10,7 @@ from .const import STORAGE_KEY, STORAGE_VERSION
 from .models import (
     Override,
     Schedule,
+    _coerce_bool,
     override_from_dict,
     override_to_dict,
     schedule_from_dict,
@@ -35,9 +36,12 @@ class ScheduleManagerStorage:
         base: Dict[str, Any] = {
             "schedules": {},
             "overrides": {},
+            "scheduling_enabled": True,
         }
         if not raw:
             return base
+
+        scheduling_enabled = _coerce_bool(raw.get("scheduling_enabled"), True)
 
         schedules: Dict[str, Schedule] = {}
         for sid, item in raw.get("schedules", {}).items():
@@ -57,7 +61,11 @@ class ScheduleManagerStorage:
             else:
                 overrides[oid] = override_from_dict(item)
 
-        return {"schedules": schedules, "overrides": overrides}
+        return {
+            "schedules": schedules,
+            "overrides": overrides,
+            "scheduling_enabled": scheduling_enabled,
+        }
 
     async def async_save(self) -> None:
         """Save data to storage as JSON-serializable dicts."""
@@ -70,8 +78,17 @@ class ScheduleManagerStorage:
                 oid: override_to_dict(ovr)
                 for oid, ovr in self.get_overrides().items()
             },
+            "scheduling_enabled": self.is_scheduling_enabled(),
         }
         await self._store.async_save(payload)
+
+    def is_scheduling_enabled(self) -> bool:
+        """Interrupteur global hub : planification autorisée."""
+        return _coerce_bool(self._data.get("scheduling_enabled"), True)
+
+    def set_scheduling_enabled(self, enabled: bool) -> None:
+        """Active ou suspend toute exécution (persisté au prochain ``async_save``)."""
+        self._data["scheduling_enabled"] = bool(enabled)
 
     def get_schedules(self) -> Dict[str, Schedule]:
         """Get all schedules."""

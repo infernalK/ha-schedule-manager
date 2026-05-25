@@ -1,8 +1,9 @@
-"""Synchronise le nom affiché dans HA (appareil / entité) vers le stockage des plannings."""
+"""Synchronise les noms planning entre stockage, registre HA et carte Lovelace."""
 
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING
 
 from homeassistant.components import switch
 from homeassistant.config_entries import ConfigEntry
@@ -12,8 +13,10 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_registry import EVENT_ENTITY_REGISTRY_UPDATED
 
 from .const import DOMAIN
-from .services import async_persist
 from .storage import ScheduleManagerStorage
+
+if TYPE_CHECKING:
+    from .schedule_devices import SchedulePlanningRegistry
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -42,13 +45,64 @@ def schedule_id_from_device_identifier(entry_id: str, identifier: str) -> str | 
     return body or None
 
 
+def _planning_device_identifier(entry_id: str, schedule_id: str) -> set[tuple[str, str]]:
+    return {(DOMAIN, f"{entry_id}_{schedule_id}")}
+
+
+def _display_name_from_registry(
+    entity: er.RegistryEntry | None,
+    device: dr.DeviceEntry | None,
+) -> str:
+    """Nom affiché choisi par l'utilisateur (entité ou appareil)."""
+    if entity is not None and entity.name:
+        return entity.name.strip()
+    if device is not None and device.name_by_user:
+        return device.name_by_user.strip()
+    if device is not None and device.name:
+        return device.name.strip()
+    if entity is not None and entity.original_name:
+        return entity.original_name.strip()
+    return ""
+
+
+async def async_sync_schedule_display_name_from_storage(
+    hass: HomeAssistant,
+    entry_id: str,
+    schedule_id: str,
+    name: str,
+) -> None:
+    """Pousse le nom du stockage vers l'appareil planning (sans écraser inutilement)."""
+    trimmed = name.strip()
+    if not trimmed:
+        return
+    dev_reg = dr.async_get(hass)
+    device = dev_reg.async_get_device(_planning_device_identifier(entry_id, schedule_id))
+    if device is None:
+        return
+    current = (device.name_by_user or device.name or "").strip()
+    if current == trimmed:
+        return
+    dev_reg.async_update_device(device.id, name_by_user=trimmed)
+
+
+async def _refresh_planning_entity(
+    hass: HomeAssistant, schedule_id: str
+) -> None:
+    registry: SchedulePlanningRegistry | None = hass.data.get(DOMAIN, {}).get(
+        "schedule_planning_registry"
+    )
+    if registry is not None:
+        await registry.async_refresh_schedule_attrs(schedule_id)
+
+
 async def _apply_schedule_name(
     hass: HomeAssistant,
     storage: ScheduleManagerStorage,
+    entry_id: str,
     schedule_id: str,
     new_name: str,
 ) -> None:
-    """Met à jour le stockage si le nom a changé, puis rafraîchit le capteur / la carte."""
+    """Met à jour le stockage si le nom a changé, puis rafraîchit capteur / carte."""
     trimmed = new_name.strip()
     if not trimmed:
         return
@@ -57,13 +111,29 @@ async def _apply_schedule_name(
     if sch is None or sch.name == trimmed:
         return
     sch.name = trimmed
+    from .services import async_persist
+
     await async_persist(hass, storage)
+    await _refresh_planning_entity(hass, schedule_id)
     _LOGGER.debug(
         "%s: nom du planning %s synchronisé depuis le registre HA → %r",
         DOMAIN,
         schedule_id,
         trimmed,
     )
+
+
+async def async_apply_schedule_name_from_storage(
+    hass: HomeAssistant,
+    entry_id: str,
+    schedule_id: str,
+    name: str,
+) -> None:
+    """Après modification du stockage (service update_schedule) : registre + entités."""
+    await async_sync_schedule_display_name_from_storage(
+        hass, entry_id, schedule_id, name
+    )
+    await _refresh_planning_entity(hass, schedule_id)
 
 
 @callback
@@ -89,10 +159,16 @@ def async_setup_schedule_name_sync(
         schedule_id = schedule_id_from_planning_unique_id(entry_id, entity.unique_id)
         if schedule_id is None:
             return
-        new_name = (entity.name or entity.original_name or "").strip()
+        dev_reg = dr.async_get(hass)
+        device = (
+            dev_reg.async_get(entity.device_id) if entity.device_id else None
+        )
+        new_name = _display_name_from_registry(entity, device)
         if not new_name:
             return
-        hass.async_create_task(_apply_schedule_name(hass, storage, schedule_id, new_name))
+        hass.async_create_task(
+            _apply_schedule_name(hass, storage, entry_id, schedule_id, new_name)
+        )
 
     @callback
     def _device_registry_updated(event: Event) -> None:
@@ -117,7 +193,9 @@ def async_setup_schedule_name_sync(
         new_name = (device.name_by_user or device.name or "").strip()
         if not new_name:
             return
-        hass.async_create_task(_apply_schedule_name(hass, storage, schedule_id, new_name))
+        hass.async_create_task(
+            _apply_schedule_name(hass, storage, entry_id, schedule_id, new_name)
+        )
 
     entry.async_on_unload(
         hass.bus.async_listen(EVENT_ENTITY_REGISTRY_UPDATED, _entity_registry_updated)

@@ -73,6 +73,19 @@ def time_block_from_dict(data: Dict[str, Any]) -> "TimeBlock":
     )
 
 
+def _coerce_bool(value: Any, default: bool = True) -> bool:
+    """Interprète un booléen depuis le stockage JSON (évite ``\"false\"`` truthy)."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in ("true", "1", "yes", "on")
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if value is None:
+        return default
+    return default
+
+
 def schedule_to_dict(schedule: "Schedule") -> Dict[str, Any]:
     """Serialize a schedule for entity attributes or storage."""
     return {
@@ -89,7 +102,7 @@ def schedule_from_dict(data: Dict[str, Any]) -> "Schedule":
     return Schedule(
         id=data.get("id", str(uuid.uuid4())),
         name=data["name"],
-        enabled=data.get("enabled", True),
+        enabled=_coerce_bool(data.get("enabled"), True),
         repeat_days=data.get("repeat_days", list(range(7))),
         time_blocks=[time_block_from_dict(tb) for tb in data.get("time_blocks", [])],
     )

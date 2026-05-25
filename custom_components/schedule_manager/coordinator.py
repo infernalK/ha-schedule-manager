@@ -69,6 +69,25 @@ class ScheduleManagerCoordinator(DataUpdateCoordinator):
         self._last_executed_slot_key: Optional[str] = None
         self._boundary_unsub: Optional[Callable[[], None]] = None
         self._deferred_unsub: Optional[Callable[[], None]] = None
+        # Premier cycle après boot : exécuter chaque planning activé (pas seulement latest-start).
+        self._startup_full_eval_pending = True
+        self._suppress_action_execution = False
+        self._sync_marker_on_suppressed_refresh = False
+
+    async def async_refresh_after_enable(self, *, sync_marker: bool) -> None:
+        """Rafraîchit capteur / interrupteurs sans ré-exécuter (actions déjà lancées à l’activation)."""
+        self._suppress_action_execution = True
+        self._sync_marker_on_suppressed_refresh = sync_marker
+        try:
+            await self.async_refresh()
+        finally:
+            self._suppress_action_execution = False
+            self._sync_marker_on_suppressed_refresh = False
+
+    def prepare_startup_evaluation(self) -> None:
+        """Réinitialise l’exécution au démarrage HA (interrupteurs relus depuis le stockage)."""
+        self.reset_executed_slot_marker()
+        self._startup_full_eval_pending = True
 
     def cancel_boundary_watcher(self) -> None:
         """Annule le réveil sur la prochaine transition (déchargement intégration)."""
@@ -136,6 +155,14 @@ class ScheduleManagerCoordinator(DataUpdateCoordinator):
             delay_seconds,
         )
 
+    def _resolve_execution_slots(
+        self, schedules: dict, current_time: datetime
+    ) -> list:
+        """Plages à exécuter : toutes les activées au boot, puis règle latest-start."""
+        if self._startup_full_eval_pending:
+            return self.engine.resolve_all_enabled_active_slots(schedules, current_time)
+        return self.engine.resolve_active_slots_for_execution(schedules, current_time)
+
     async def _async_update_data(self):
         """Update data."""
         current_time = dt_util.now()
@@ -147,11 +174,22 @@ class ScheduleManagerCoordinator(DataUpdateCoordinator):
             if 0 < skew_sec <= 5.0:
                 current_time = planned
         schedules = self.storage.get_schedules()
+        display_slot = self.engine.resolve_active_slot(schedules, current_time)
+        current_block = display_slot.block if display_slot else None
 
-        slots = self.engine.resolve_active_slots_for_execution(schedules, current_time)
+        if not self.storage.is_scheduling_enabled():
+            self._last_executed_slot_key = None
+            next_wakeup = self.engine.compute_next_schedule_event(schedules, current_time)
+            self._schedule_boundary_watcher(next_wakeup)
+            return {
+                "active_time_slot": display_slot,
+                "current_time_block": current_block,
+                "next_trigger": next_wakeup.isoformat() if next_wakeup else None,
+                "schedules": schedules,
+            }
+
+        slots = self._resolve_execution_slots(schedules, current_time)
         slot_key = _composite_slot_key(slots) if slots else None
-        slot = slots[0] if slots else None
-        current_block = slot.block if slot else None
 
         if slot_key != self._last_executed_slot_key:
             if slots:
@@ -160,6 +198,11 @@ class ScheduleManagerCoordinator(DataUpdateCoordinator):
                         "%s: Home Assistant pas encore prêt (is_running=False) — exécution des actions reportée",
                         DOMAIN,
                     )
+                    self._schedule_deferred_refresh(15)
+                elif self._suppress_action_execution:
+                    if self._sync_marker_on_suppressed_refresh:
+                        self._last_executed_slot_key = slot_key
+                    self._startup_full_eval_pending = False
                 else:
                     all_ok = True
                     for sl in slots:
@@ -169,17 +212,20 @@ class ScheduleManagerCoordinator(DataUpdateCoordinator):
                             break
                     if all_ok:
                         self._last_executed_slot_key = slot_key
+                        self._startup_full_eval_pending = False
                     else:
                         self._schedule_deferred_refresh()
             else:
                 self._last_executed_slot_key = None
+                if self._startup_full_eval_pending and self.hass.is_running:
+                    self._startup_full_eval_pending = False
 
         next_wakeup = self.engine.compute_next_schedule_event(schedules, current_time)
 
         self._schedule_boundary_watcher(next_wakeup)
 
         return {
-            "active_time_slot": slot,
+            "active_time_slot": display_slot,
             "current_time_block": current_block,
             "next_trigger": next_wakeup.isoformat() if next_wakeup else None,
             "schedules": schedules,

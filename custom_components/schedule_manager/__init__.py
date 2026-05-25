@@ -77,6 +77,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     storage = ScheduleManagerStorage(hass)
     await storage.async_load()
     hass.data[DOMAIN]["storage"] = storage
+    hass.data[DOMAIN]["config_entry_id"] = entry.entry_id
 
     # Initialize coordinator
     coordinator = ScheduleManagerCoordinator(hass, storage)
@@ -98,8 +99,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     @callback
     def _on_ha_started(_h: HomeAssistant) -> None:
-        """HA en état running : rejouer tout de suite le créneau courant, puis secours ~1 min (entités lentes)."""
+        """HA prêt : relire les interrupteurs depuis le stockage et exécuter les plages actives."""
 
+        coordinator.prepare_startup_evaluation()
         _h.async_create_task(coordinator.async_refresh())
 
         @callback

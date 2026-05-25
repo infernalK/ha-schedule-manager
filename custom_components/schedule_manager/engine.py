@@ -123,6 +123,21 @@ class ScheduleEngine:
         return ActiveTimeSlot(schedule_id=schedule_id, block=block)
 
     @staticmethod
+    def resolve_all_enabled_active_slots(
+        schedules: Dict[str, Schedule], current_time: datetime
+    ) -> List[ActiveTimeSlot]:
+        """Au démarrage : une plage par planning activé couvrant l'instant (interrupteurs ON)."""
+        slots: List[ActiveTimeSlot] = []
+        for sid, schedule in schedules.items():
+            if not schedule.enabled:
+                continue
+            block = ScheduleEngine.get_current_time_block(schedule, current_time)
+            if block:
+                slots.append(ActiveTimeSlot(schedule_id=sid, block=block))
+        slots.sort(key=lambda s: s.schedule_id)
+        return slots
+
+    @staticmethod
     def compute_next_schedule_event(
         schedules: Dict[str, Schedule],
         now: datetime,

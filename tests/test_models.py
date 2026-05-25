@@ -14,6 +14,7 @@ _spec.loader.exec_module(_mod)
 BlockAction = _mod.BlockAction
 Schedule = _mod.Schedule
 TimeBlock = _mod.TimeBlock
+schedule_from_dict = _mod.schedule_from_dict
 time_block_from_dict = _mod.time_block_from_dict
 time_block_to_dict = _mod.time_block_to_dict
 
@@ -38,6 +39,19 @@ def test_time_block_actions():
     )
     assert block.start_time == time(8, 0)
     assert block.actions[0].action_type == "climate.set_preset_mode"
+
+
+def test_schedule_enabled_coerced_from_storage():
+    """``enabled: false`` en JSON ne doit pas rester truthy (chaîne)."""
+    sch = schedule_from_dict(
+        {
+            "id": "x",
+            "name": "Off",
+            "enabled": "false",
+            "time_blocks": [],
+        }
+    )
+    assert sch.enabled is False
 
 
 def test_time_block_legacy_dict_migration():
