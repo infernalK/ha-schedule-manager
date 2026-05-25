@@ -95,6 +95,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Le premier cycle a souvent lieu avant l’enregistrement des CoordinatorEntity :
     # sans listener, l’intervalle 60 s du coordinateur ne part pas (voir DataUpdateCoordinator).
     # Un second cycle ici relance l’évaluation du créneau une fois le capteur / interrupteurs chargés.
+    coordinator.prepare_startup_evaluation()
     await coordinator.async_refresh()
 
     @callback

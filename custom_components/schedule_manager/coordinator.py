@@ -71,6 +71,7 @@ class ScheduleManagerCoordinator(DataUpdateCoordinator):
         self._deferred_unsub: Optional[Callable[[], None]] = None
         # Premier cycle après boot : exécuter chaque planning activé (pas seulement latest-start).
         self._startup_full_eval_pending = True
+        self._startup_executed_keys: set[str] = set()
         self._suppress_action_execution = False
         self._sync_marker_on_suppressed_refresh = False
 
@@ -88,6 +89,7 @@ class ScheduleManagerCoordinator(DataUpdateCoordinator):
         """Réinitialise l’exécution au démarrage HA (interrupteurs relus depuis le stockage)."""
         self.reset_executed_slot_marker()
         self._startup_full_eval_pending = True
+        self._startup_executed_keys = set()
 
     def cancel_boundary_watcher(self) -> None:
         """Annule le réveil sur la prochaine transition (déchargement intégration)."""
@@ -138,10 +140,12 @@ class ScheduleManagerCoordinator(DataUpdateCoordinator):
 
         self._boundary_unsub = async_track_point_in_time(self.hass, _on_boundary, next_when)
 
-    def _schedule_deferred_refresh(self, delay_seconds: int = 90) -> None:
+    def _schedule_deferred_refresh(self, delay_seconds: int | None = None) -> None:
         """Un seul timer : réessaie après que les entités aient eu le temps de s’enregistrer."""
         if self._deferred_unsub is not None:
             return
+        if delay_seconds is None:
+            delay_seconds = 15 if self._startup_full_eval_pending else 90
 
         @callback
         def _fire(_now: datetime) -> None:
@@ -191,34 +195,34 @@ class ScheduleManagerCoordinator(DataUpdateCoordinator):
         slots = self._resolve_execution_slots(schedules, current_time)
         slot_key = _composite_slot_key(slots) if slots else None
 
-        if slot_key != self._last_executed_slot_key:
+        if self._startup_full_eval_pending:
+            startup_targets = self.engine.resolve_all_enabled_active_slots(
+                schedules, current_time
+            )
+            if not startup_targets and self.hass.is_running:
+                self._startup_full_eval_pending = False
+            pending = [
+                sl
+                for sl in startup_targets
+                if _slot_key(sl.schedule_id, sl.block) not in self._startup_executed_keys
+            ]
+            if pending:
+                await self._execute_slots(
+                    pending,
+                    marker_key=_composite_slot_key(startup_targets),
+                    startup_mode=True,
+                    startup_total=len(startup_targets),
+                )
+        elif slot_key != self._last_executed_slot_key:
             if slots:
-                if not self.hass.is_running:
-                    self.logger.debug(
-                        "%s: Home Assistant pas encore prêt (is_running=False) — exécution des actions reportée",
-                        DOMAIN,
-                    )
-                    self._schedule_deferred_refresh(15)
-                elif self._suppress_action_execution:
-                    if self._sync_marker_on_suppressed_refresh:
-                        self._last_executed_slot_key = slot_key
-                    self._startup_full_eval_pending = False
-                else:
-                    all_ok = True
-                    for sl in slots:
-                        ok = await async_run_block_actions(self.hass, sl.block)
-                        if not ok:
-                            all_ok = False
-                            break
-                    if all_ok:
-                        self._last_executed_slot_key = slot_key
-                        self._startup_full_eval_pending = False
-                    else:
-                        self._schedule_deferred_refresh()
+                await self._execute_slots(
+                    slots,
+                    marker_key=slot_key,
+                    startup_mode=False,
+                    startup_total=0,
+                )
             else:
                 self._last_executed_slot_key = None
-                if self._startup_full_eval_pending and self.hass.is_running:
-                    self._startup_full_eval_pending = False
 
         next_wakeup = self.engine.compute_next_schedule_event(schedules, current_time)
 
@@ -230,3 +234,53 @@ class ScheduleManagerCoordinator(DataUpdateCoordinator):
             "next_trigger": next_wakeup.isoformat() if next_wakeup else None,
             "schedules": schedules,
         }
+
+    async def _execute_slots(
+        self,
+        slots: list,
+        *,
+        marker_key: str | None,
+        startup_mode: bool,
+        startup_total: int,
+    ) -> None:
+        """Exécute une liste de créneaux ; au boot, continue même si un planning échoue."""
+        if not slots:
+            return
+        if not self.hass.is_running:
+            self.logger.debug(
+                "%s: Home Assistant pas encore prêt (is_running=False) — exécution reportée",
+                DOMAIN,
+            )
+            self._schedule_deferred_refresh(15)
+            return
+        if self._suppress_action_execution:
+            if self._sync_marker_on_suppressed_refresh and marker_key:
+                self._last_executed_slot_key = marker_key
+            if startup_mode:
+                self._startup_full_eval_pending = False
+            return
+
+        need_defer = False
+        for sl in slots:
+            key = _slot_key(sl.schedule_id, sl.block)
+            if startup_mode and key in self._startup_executed_keys:
+                continue
+            ok = await async_run_block_actions(self.hass, sl.block)
+            if ok:
+                if startup_mode:
+                    self._startup_executed_keys.add(key)
+            else:
+                need_defer = True
+
+        if startup_mode:
+            if startup_total > 0 and len(self._startup_executed_keys) >= startup_total:
+                self._startup_full_eval_pending = False
+                self._last_executed_slot_key = marker_key
+            elif need_defer:
+                self._schedule_deferred_refresh()
+            return
+
+        if need_defer:
+            self._schedule_deferred_refresh()
+        elif marker_key:
+            self._last_executed_slot_key = marker_key
