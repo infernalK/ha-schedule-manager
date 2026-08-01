@@ -2,7 +2,9 @@
   "domain": "schedule_manager",
   "name": "Schedule Manager",
   "after_dependencies": [],
-  "codeowners": ["@infernalK"],
+  "codeowners": [
+    "@infernalK"
+  ],
   "config_flow": true,
   "dependencies": [],
   "documentation": "https://github.com/infernalK/ha-schedule-manager",
@@ -13,6 +15,6 @@
   "requirements": [],
   "single_config_entry": true,
   "ssdp": [],
-  "version": "0.1.0",
+  "version": "0.1.1",
   "zeroconf": []
 }
