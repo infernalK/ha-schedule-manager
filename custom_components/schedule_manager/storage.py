@@ -115,3 +115,13 @@ class ScheduleManagerStorage:
         """Remove an override."""
         if override_id in self._data["overrides"]:
             del self._data["overrides"][override_id]
+
+    def purge_expired_overrides(self, now_ts: float) -> bool:
+        """Drop overrides whose duration has elapsed. Returns True if any were removed."""
+        overrides = self._data.get("overrides", {})
+        expired = [
+            oid for oid, ovr in overrides.items() if now_ts - ovr.start_time >= ovr.duration
+        ]
+        for oid in expired:
+            del overrides[oid]
+        return bool(expired)

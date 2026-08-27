@@ -3,7 +3,7 @@
 from datetime import datetime, time as dt_time, timedelta
 from typing import Dict, List, Optional, Tuple
 
-from .models import ActiveTimeSlot, Schedule, TimeBlock
+from .models import ActiveTimeSlot, Override, Schedule, TimeBlock
 
 
 class ScheduleEngine:
@@ -50,11 +50,13 @@ class ScheduleEngine:
         current_day = current_time.weekday()
         current_t = current_time.time()
 
-        # Check today's remaining blocks
-        for block in schedule.time_blocks:
-            if block.start_time > current_t:
-                next_time = datetime.combine(current_time.date(), block.start_time)
-                return block, next_time
+        # Check today's remaining blocks (seulement si le jour courant fait partie de repeat_days)
+        if current_day in schedule.repeat_days:
+            upcoming_today = [b for b in schedule.time_blocks if b.start_time > current_t]
+            if upcoming_today:
+                next_block = min(upcoming_today, key=lambda b: b.start_time)
+                next_time = datetime.combine(current_time.date(), next_block.start_time)
+                return next_block, next_time
 
         # Check next days
         for day_offset in range(1, 8):
@@ -136,6 +138,15 @@ class ScheduleEngine:
                 slots.append(ActiveTimeSlot(schedule_id=sid, block=block))
         slots.sort(key=lambda s: s.schedule_id)
         return slots
+
+    @staticmethod
+    def overridden_entities(overrides: Dict[str, Override], now_ts: float) -> set:
+        """Entity ids with a still-active override at ``now_ts`` (wall-clock timestamp)."""
+        return {
+            ov.target_entity
+            for ov in overrides.values()
+            if now_ts - ov.start_time < ov.duration
+        }
 
     @staticmethod
     def compute_next_schedule_event(

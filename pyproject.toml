@@ -4,9 +4,9 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ha-schedule-manager"
-version = "0.1.1"
+version = "0.1.4"
 description = "Schedule Manager integration for Home Assistant"
-authors = [{name = "Your Name"}]
+authors = [{name = "infernalK"}]
 dependencies = []
 
 [tool.setuptools]

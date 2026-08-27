@@ -74,6 +74,7 @@ class ScheduleManagerCoordinator(DataUpdateCoordinator):
         self._startup_executed_keys: set[str] = set()
         self._suppress_action_execution = False
         self._sync_marker_on_suppressed_refresh = False
+        self._overridden_entities: set[str] = set()
 
     async def async_refresh_after_enable(self, *, sync_marker: bool) -> None:
         """Rafraîchit capteur / interrupteurs sans ré-exécuter (actions déjà lancées à l’activation)."""
@@ -178,6 +179,12 @@ class ScheduleManagerCoordinator(DataUpdateCoordinator):
             if 0 < skew_sec <= 5.0:
                 current_time = planned
         schedules = self.storage.get_schedules()
+        now_ts = dt_util.utcnow().timestamp()
+        if self.storage.purge_expired_overrides(now_ts):
+            await self.storage.async_save()
+        self._overridden_entities = self.engine.overridden_entities(
+            self.storage.get_overrides(), now_ts
+        )
         display_slot = self.engine.resolve_active_slot(schedules, current_time)
         current_block = display_slot.block if display_slot else None
 
@@ -265,7 +272,9 @@ class ScheduleManagerCoordinator(DataUpdateCoordinator):
             key = _slot_key(sl.schedule_id, sl.block)
             if startup_mode and key in self._startup_executed_keys:
                 continue
-            ok = await async_run_block_actions(self.hass, sl.block)
+            ok = await async_run_block_actions(
+                self.hass, sl.block, skip_entities=self._overridden_entities
+            )
             if ok:
                 if startup_mode:
                     self._startup_executed_keys.add(key)

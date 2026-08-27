@@ -85,8 +85,17 @@ def block_target_entities_ready(hass: HomeAssistant, block: "TimeBlock") -> bool
     return True
 
 
-async def async_run_block_actions(hass: HomeAssistant, block: "TimeBlock") -> bool:
-    """Appelle les services HA pour chaque action. Retourne False si report (entités / erreur)."""
+async def async_run_block_actions(
+    hass: HomeAssistant,
+    block: "TimeBlock",
+    *,
+    skip_entities: set[str] | None = None,
+) -> bool:
+    """Appelle les services HA pour chaque action. Retourne False si report (entités / erreur).
+
+    ``skip_entities`` : entités sous override actif — leurs actions de plage sont ignorées
+    pour ne pas écraser l’état imposé par l’override en cours.
+    """
     n = len(block.actions)
     if n == 0:
         return True
@@ -101,6 +110,7 @@ async def async_run_block_actions(hass: HomeAssistant, block: "TimeBlock") -> bo
         block.id,
     )
     invoked = 0
+    skipped = 0
     for action in block.actions:
         raw = (action.action_type or "").strip()
         if not raw or "." not in raw:
@@ -117,6 +127,17 @@ async def async_run_block_actions(hass: HomeAssistant, block: "TimeBlock") -> bo
             )
             continue
         raw_payload = dict(action.action_payload) if action.action_payload else {}
+        if skip_entities:
+            targeted = set(_iter_entity_ids_from_payload(raw_payload))
+            if targeted & skip_entities:
+                _LOGGER.info(
+                    "%s: action ignorée pour la plage %s (entité sous override: %s)",
+                    DOMAIN,
+                    block.id,
+                    targeted & skip_entities,
+                )
+                skipped += 1
+                continue
         payload = _payload_for_service_call(raw_payload)
         try:
             _LOGGER.debug(
@@ -138,7 +159,7 @@ async def async_run_block_actions(hass: HomeAssistant, block: "TimeBlock") -> bo
                 err,
             )
             return False
-    if invoked == 0:
+    if invoked == 0 and skipped == 0:
         _LOGGER.error(
             "%s: aucun appel de service effectué pour la plage %s (vérifiez action_type domaine.service)",
             DOMAIN,

@@ -31,6 +31,7 @@ _spec_e.loader.exec_module(_mod_e)
 
 ScheduleEngine = _mod_e.ScheduleEngine
 BlockAction = _mod_m.BlockAction
+Override = _mod_m.Override
 Schedule = _mod_m.Schedule
 TimeBlock = _mod_m.TimeBlock
 
@@ -271,3 +272,51 @@ def test_get_current_time_block_max_start_wins_on_overlap():
     assert ScheduleEngine.get_current_time_block(sch_wide_first, now) == b_narrow
     sch_narrow_first = _sch("x", [b_narrow, b_wide])
     assert ScheduleEngine.get_current_time_block(sch_narrow_first, now) == b_narrow
+
+
+def test_overridden_entities_active_within_duration():
+    """Un override dont la durée n’est pas écoulée bloque son entité cible."""
+    now_ts = 1_000_000.0
+    ov = Override(
+        target_entity="light.x",
+        action_type="light.turn_on",
+        action_payload={},
+        duration=3600,
+        start_time=now_ts - 100,
+    )
+    assert ScheduleEngine.overridden_entities({"o1": ov}, now_ts) == {"light.x"}
+
+
+def test_overridden_entities_expired_is_excluded():
+    """Un override dont la durée est écoulée n’a plus d’effet."""
+    now_ts = 1_000_000.0
+    ov = Override(
+        target_entity="light.x",
+        action_type="light.turn_on",
+        action_payload={},
+        duration=3600,
+        start_time=now_ts - 3601,
+    )
+    assert ScheduleEngine.overridden_entities({"o1": ov}, now_ts) == set()
+
+
+def test_get_next_time_block_skips_today_when_not_in_repeat_days():
+    """Le jour courant n’est pas dans repeat_days : il faut sauter directement au prochain jour actif."""
+    b = TimeBlock(time(18, 0), time(20, 0), [BlockAction("light.turn_on", {}, id="a1")])
+    # 2026-05-13 est un mercredi (weekday()==2) ; planning actif seulement le vendredi (4).
+    sch = _sch("x", [b], repeat_days=[4])
+    now = datetime(2026, 5, 13, 10, 0, 0)
+    block, next_time = ScheduleEngine.get_next_time_block(sch, now)
+    assert block == b
+    assert next_time == datetime(2026, 5, 15, 18, 0, 0)
+
+
+def test_get_next_time_block_returns_earliest_upcoming_not_list_order():
+    """Parmi les plages restantes du jour, la plus proche doit gagner, pas la première de la liste."""
+    b_late = TimeBlock(time(20, 0), time(22, 0), [BlockAction("light.turn_on", {}, id="a1")], id="late")
+    b_early = TimeBlock(time(15, 0), time(16, 0), [BlockAction("switch.turn_on", {}, id="a2")], id="early")
+    sch = _sch("x", [b_late, b_early])
+    now = datetime(2026, 5, 13, 10, 0, 0)
+    block, next_time = ScheduleEngine.get_next_time_block(sch, now)
+    assert block == b_early
+    assert next_time == datetime(2026, 5, 13, 15, 0, 0)

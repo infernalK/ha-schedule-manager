@@ -1,6 +1,7 @@
 """Services for Schedule Manager."""
 
 import uuid
+from datetime import time as dt_time
 from typing import Any
 
 import voluptuous as vol
@@ -49,7 +50,10 @@ async def _run_enabled_schedule_actions(
     block = ScheduleEngine.get_current_time_block(sch, dt_util.now())
     if block is None:
         return False
-    ok = await async_run_block_actions(hass, block)
+    overridden = ScheduleEngine.overridden_entities(
+        storage.get_overrides(), dt_util.utcnow().timestamp()
+    )
+    ok = await async_run_block_actions(hass, block, skip_entities=overridden)
     if not ok:
         coordinator = hass.data.get(DOMAIN, {}).get("coordinator")
         if coordinator is not None:
@@ -356,14 +360,30 @@ async def async_setup_services(hass: HomeAssistant, storage: ScheduleManagerStor
             action_type=call.data["action_type"],
             action_payload=call.data["action_payload"],
             duration=call.data["duration"],
-            start_time=hass.loop.time(),
+            start_time=dt_util.utcnow().timestamp(),
         )
         storage.add_override(override)
+        _invalidate_coordinator_slot_marker(hass)
+        # Applique l'override immédiatement ; les actions de plage ciblant cette entité
+        # seront ignorées tant qu'il est actif (voir ScheduleEngine.overridden_entities).
+        override_block = TimeBlock(
+            start_time=dt_time(0, 0),
+            end_time=dt_time(0, 0),
+            actions=[
+                BlockAction(
+                    action_type=override.action_type,
+                    action_payload=override.action_payload,
+                    id=override.id,
+                )
+            ],
+        )
+        await async_run_block_actions(hass, override_block)
         await _persist(hass, storage)
 
     async def handle_clear_override(call: ServiceCall) -> None:
         override_id = call.data["override_id"]
         storage.remove_override(override_id)
+        _invalidate_coordinator_slot_marker(hass)
         await _persist(hass, storage)
 
     async def handle_run_actions(call: ServiceCall) -> None:
@@ -371,6 +391,9 @@ async def async_setup_services(hass: HomeAssistant, storage: ScheduleManagerStor
         schedules = storage.get_schedules()
         engine = ScheduleEngine()
         at = dt_util.now()
+        overridden = engine.overridden_entities(
+            storage.get_overrides(), dt_util.utcnow().timestamp()
+        )
         sid = call.data.get("schedule_id")
         if sid:
             sch = schedules.get(sid)
@@ -381,7 +404,7 @@ async def async_setup_services(hass: HomeAssistant, storage: ScheduleManagerStor
                 raise ServiceValidationError(
                     "Aucune plage horaire active à cet instant pour ce planning."
                 )
-            ok = await async_run_block_actions(hass, block)
+            ok = await async_run_block_actions(hass, block, skip_entities=overridden)
             if not ok:
                 raise ServiceValidationError(
                     "Les entités ciblées ne sont pas encore disponibles ou un appel de service a échoué."
@@ -394,7 +417,7 @@ async def async_setup_services(hass: HomeAssistant, storage: ScheduleManagerStor
                 "Aucune plage horaire active à cet instant (tous plannings)."
             )
         for sl in slots:
-            ok = await async_run_block_actions(hass, sl.block)
+            ok = await async_run_block_actions(hass, sl.block, skip_entities=overridden)
             if not ok:
                 raise ServiceValidationError(
                     "Les entités ciblées ne sont pas encore disponibles ou un appel de service a échoué."
