@@ -6,7 +6,10 @@
     "@infernalK"
   ],
   "config_flow": true,
-  "dependencies": [],
+  "dependencies": [
+    "frontend",
+    "http"
+  ],
   "documentation": "https://github.com/infernalK/ha-schedule-manager",
   "homekit": {},
   "integration_type": "service",
@@ -15,6 +18,6 @@
   "requirements": [],
   "single_config_entry": true,
   "ssdp": [],
-  "version": "0.1.5",
+  "version": "0.1.6",
   "zeroconf": []
 }
