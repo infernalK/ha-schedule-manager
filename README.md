@@ -17,16 +17,14 @@ Vous voulez que le mode *Confort* du radiateur du salon soit activé **tous les 
 
 ---
 
-## Deux choses à installer pour une utilisation confortable
+## Une seule installation : intégration + carte
 
-| Quoi ? | Rôle en une phrase |
-|--------|-------------------|
-| **Cette intégration** (dépôt *ha-schedule-manager*) | Elle **enregistre** vos plannings, **déclenche** les actions aux bonnes heures et crée les **interrupteurs** et le **capteur d’état** dans Home Assistant. |
-| **[Schedule Manager Card](https://github.com/infernalK/ha-schedule-manager-card)** (autre dépôt) | Une **carte** sur votre tableau de bord pour **voir** et **modifier** les plannings à la souris, sans tout écrire en code. |
+Cette extension **embarque sa propre carte Lovelace** — plus besoin d’installer un second dépôt. En installant **Schedule Manager**, vous obtenez :
 
-**Important :** la carte **ne suffit pas** seule. Il faut d’abord installer et ajouter **Schedule Manager** comme intégration (étapes ci-dessous). Ensuite seulement, vous installez la carte sur le même Home Assistant.
+- l’**intégration** qui **enregistre** vos plannings, **déclenche** les actions aux bonnes heures et crée les **interrupteurs** et le **capteur d’état** ;
+- la **carte** « Schedule Manager » qui s’enregistre automatiquement comme ressource du tableau de bord au démarrage, prête à ajouter sur une vue.
 
-Si vous n’installez pas la carte, vous pouvez quand même créer des plannings depuis **Paramètres** et, pour les horaires détaillés, utiliser les **outils pour développeurs** ou des **automatisations** (voir plus bas).
+Si vous ne voulez pas utiliser la carte, vous pouvez quand même créer des plannings depuis **Paramètres** et, pour les horaires détaillés, utiliser les **outils pour développeurs** ou des **automatisations** (voir plus bas).
 
 ---
 
@@ -75,11 +73,10 @@ Lien utile pour ouvrir HACS depuis la doc : [créer un lien my.home-assistant.io
 
 ## Utiliser la carte pour les horaires (recommandé pour débuter)
 
-Installez la **[Schedule Manager Card](https://github.com/infernalK/ha-schedule-manager-card)** (voir le README de ce dépôt : installation HACS ou copie du fichier `.js`). Ensuite, sur un tableau de bord :
+La carte est déjà installée avec l’intégration (aucune ressource à ajouter à la main). Sur un tableau de bord :
 
 1. Trois points **⋮** → **Modifier le tableau de bord**.
-2. **Ajouter une carte** → en bas, **Carte personnalisée** (ou saisie manuelle selon votre thème).
-3. Choisissez **Schedule Manager** si elle apparaît, ou collez le YAML minimal du README de la carte.
+2. **Ajouter une carte** → cherchez **Schedule Manager** dans la liste, ou choisissez **Carte personnalisée** et saisissez `custom:schedule-manager-card`.
 
 Depuis la carte vous pourrez en général : **créer** un planning, **supprimer** un planning, **ajouter / retirer** des plages, **activer ou désactiver** un planning.
 
@@ -140,4 +137,16 @@ Un ancien format avec une seule action directement sur la plage est encore accep
 - **Appareil « Schedule Manager »** : contient le **capteur** utilisé par la carte (liste des plannings dans les attributs) et souvent un **interrupteur** global de planification.
 - **Un appareil par planning** : contient un **interrupteur** portant le nom du planning — **allumé** = planning actif, **éteint** = planning en pause (équivalent aux services activer / désactiver).
 
-**Nom du capteur pour la carte :** Home Assistant construit un identifiant du type `sensor.schedule_manager_…` en fonction de la **langue** de l’interface (ex. `sensor.schedule_manager_status` en anglais, souvent `sensor.schedule_manager_etat` en français). Si la carte ne trouve rien, ouvrez l’appareil hub **Schedule Manager** et choisissez le bon capteur dans l’**éditeur** de la carte ou ajoutez `status_entity: …` dans le YAML de la carte (voir README de la carte).
+**Nom du capteur pour la carte :** Home Assistant construit un identifiant du type `sensor.schedule_manager_…` en fonction de la **langue** de l’interface (ex. `sensor.schedule_manager_status` en anglais, souvent `sensor.schedule_manager_etat` en français). Si la carte ne trouve rien, ouvrez l’appareil hub **Schedule Manager** et choisissez le bon capteur dans l’**éditeur** de la carte ou ajoutez `status_entity: …` dans le YAML de la carte.
+
+---
+
+## Développer la carte (contributeurs)
+
+Le code source TypeScript de la carte vit dans [`card/`](card/) ; le fichier compilé livré à Home Assistant est `custom_components/schedule_manager/www/schedule-manager-card.js`, généré par ce dossier et **ne doit pas être édité à la main**.
+
+```bash
+cd card
+npm install
+npm run build   # régénère custom_components/schedule_manager/www/schedule-manager-card.js
+```

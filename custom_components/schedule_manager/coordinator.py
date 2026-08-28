@@ -182,6 +182,9 @@ class ScheduleManagerCoordinator(DataUpdateCoordinator):
         now_ts = dt_util.utcnow().timestamp()
         if self.storage.purge_expired_overrides(now_ts):
             await self.storage.async_save()
+            # Une plage suppressée-puis-marquée-exécutée ne serait sinon jamais rejouée
+            # une fois l'override expiré (clé de créneau inchangée entre-temps).
+            self.reset_executed_slot_marker()
         self._overridden_entities = self.engine.overridden_entities(
             self.storage.get_overrides(), now_ts
         )

@@ -1,0 +1,4 @@
+node_modules
+dist
+schedule-manager-card.js
+rollup.config.js

@@ -1,0 +1,27 @@
+{
+  "name": "ha-schedule-manager-card",
+  "version": "0.1.5",
+  "type": "module",
+  "description": "Lovelace card for Schedule Manager",
+  "main": "schedule-manager-card.js",
+  "scripts": {
+    "build": "rollup -c",
+    "dev": "rollup -c -w",
+    "lint": "eslint src --ext .ts",
+    "format": "prettier --write src/**/*.ts"
+  },
+  "devDependencies": {
+    "@rollup/plugin-node-resolve": "^15.0.0",
+    "@rollup/plugin-typescript": "^11.0.0",
+    "@typescript-eslint/eslint-plugin": "^5.0.0",
+    "@typescript-eslint/parser": "^5.0.0",
+    "eslint": "^8.0.0",
+    "prettier": "^2.0.0",
+    "rollup": "^3.0.0",
+    "tslib": "^2.0.0",
+    "typescript": "^4.0.0"
+  },
+  "dependencies": {
+    "lit": "^2.0.0"
+  }
+}

@@ -362,10 +362,11 @@ async def async_setup_services(hass: HomeAssistant, storage: ScheduleManagerStor
             duration=call.data["duration"],
             start_time=dt_util.utcnow().timestamp(),
         )
-        storage.add_override(override)
-        _invalidate_coordinator_slot_marker(hass)
         # Applique l'override immédiatement ; les actions de plage ciblant cette entité
         # seront ignorées tant qu'il est actif (voir ScheduleEngine.overridden_entities).
+        # On ne persiste l'override que si l'action a réellement pu s'exécuter : sinon
+        # il resterait enregistré sans avoir rien appliqué, tout en suspendant pour rien
+        # les actions de plage sur cette entité pendant toute sa durée.
         override_block = TimeBlock(
             start_time=dt_time(0, 0),
             end_time=dt_time(0, 0),
@@ -377,7 +378,14 @@ async def async_setup_services(hass: HomeAssistant, storage: ScheduleManagerStor
                 )
             ],
         )
-        await async_run_block_actions(hass, override_block)
+        ok = await async_run_block_actions(hass, override_block)
+        if not ok:
+            raise ServiceValidationError(
+                "Impossible d'appliquer l'override : l'entité ciblée est indisponible "
+                "ou l'appel de service a échoué."
+            )
+        storage.add_override(override)
+        _invalidate_coordinator_slot_marker(hass)
         await _persist(hass, storage)
 
     async def handle_clear_override(call: ServiceCall) -> None:

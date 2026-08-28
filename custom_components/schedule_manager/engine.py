@@ -55,7 +55,9 @@ class ScheduleEngine:
             upcoming_today = [b for b in schedule.time_blocks if b.start_time > current_t]
             if upcoming_today:
                 next_block = min(upcoming_today, key=lambda b: b.start_time)
-                next_time = datetime.combine(current_time.date(), next_block.start_time)
+                next_time = datetime.combine(
+                    current_time.date(), next_block.start_time, tzinfo=current_time.tzinfo
+                )
                 return next_block, next_time
 
         # Check next days
@@ -66,7 +68,9 @@ class ScheduleEngine:
                 # Get first block of that day
                 if schedule.time_blocks:
                     first_block = min(schedule.time_blocks, key=lambda b: b.start_time)
-                    next_time = datetime.combine(next_date, first_block.start_time)
+                    next_time = datetime.combine(
+                        next_date, first_block.start_time, tzinfo=current_time.tzinfo
+                    )
                     return first_block, next_time
 
         return None

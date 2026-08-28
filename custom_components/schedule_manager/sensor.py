@@ -9,7 +9,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
 from .coordinator import ScheduleManagerCoordinator
-from .models import schedule_to_dict, time_block_to_dict
+from .models import override_to_dict, schedule_to_dict, time_block_to_dict
 
 
 async def async_setup_entry(
@@ -64,8 +64,12 @@ class ScheduleManagerSensor(CoordinatorEntity, SensorEntity):
             slot = self.coordinator.data.get("active_time_slot")
             if slot is not None:
                 active_schedule_id = slot.schedule_id
+        overrides = storage.get_overrides()
         return {
             "schedules": {sid: schedule_to_dict(s) for sid, s in schedules.items()},
+            # Seul moyen pour l'UI de récupérer l'`override_id` requis par le service
+            # `clear_override` sans passer par les diagnostics.
+            "overrides": {oid: override_to_dict(o) for oid, o in overrides.items()},
             "active_schedule_id": active_schedule_id,
             "next_trigger": self.coordinator.data.get("next_trigger")
             if self.coordinator.data

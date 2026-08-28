@@ -2,6 +2,8 @@
 
 import logging
 
+from homeassistant.components.frontend import add_extra_js_url
+from homeassistant.components.http import StaticPathConfig
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.exceptions import HomeAssistantError
@@ -10,11 +12,22 @@ from homeassistant.helpers.device_registry import DeviceEntry
 from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.start import async_at_started
 
-from .const import DOMAIN, PLATFORMS
+from .const import CARD_STATIC_URL_BASE, CARD_URL_PATH, DOMAIN, PLATFORMS
 from .storage import ScheduleManagerStorage
 from .coordinator import ScheduleManagerCoordinator
 from .name_sync import async_setup_schedule_name_sync
-from .services import async_setup_services, async_delete_schedule
+from .services import (
+    SERVICE_CLEAR_OVERRIDE,
+    SERVICE_CREATE_SCHEDULE,
+    SERVICE_DELETE_SCHEDULE,
+    SERVICE_DISABLE_SCHEDULE,
+    SERVICE_ENABLE_SCHEDULE,
+    SERVICE_RUN_ACTIONS,
+    SERVICE_SET_OVERRIDE,
+    SERVICE_UPDATE_SCHEDULE,
+    async_setup_services,
+    async_delete_schedule,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -69,9 +82,27 @@ async def async_remove_config_entry_device(
     return True
 
 
+async def _async_register_card(hass: HomeAssistant) -> None:
+    """Sert la carte Lovelace embarquée et l'enregistre comme module frontend.
+
+    `single_config_entry` : au plus une entrée existe, donc pas de garde nécessaire
+    contre un double enregistrement inter-entrées — seulement contre un rechargement.
+    """
+    if hass.data[DOMAIN].get("card_registered"):
+        return
+    www_path = hass.config.path(f"custom_components/{DOMAIN}/www")
+    await hass.http.async_register_static_paths(
+        [StaticPathConfig(CARD_STATIC_URL_BASE, www_path, False)]
+    )
+    add_extra_js_url(hass, CARD_URL_PATH)
+    hass.data[DOMAIN]["card_registered"] = True
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Schedule Manager from a config entry."""
     hass.data.setdefault(DOMAIN, {})
+
+    await _async_register_card(hass)
 
     # Initialize storage
     storage = ScheduleManagerStorage(hass)
@@ -126,4 +157,17 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.data[DOMAIN].pop("schedule_planning_registry", None)
         hass.data[DOMAIN].pop("storage", None)
         hass.data[DOMAIN].pop("coordinator", None)
+        # `single_config_entry` : il n'y a jamais qu'une entrée, donc la retirer libère
+        # bien tous les handlers (sinon ils restent enregistrés sur un stockage orphelin).
+        for service in (
+            SERVICE_CREATE_SCHEDULE,
+            SERVICE_UPDATE_SCHEDULE,
+            SERVICE_ENABLE_SCHEDULE,
+            SERVICE_DISABLE_SCHEDULE,
+            SERVICE_DELETE_SCHEDULE,
+            SERVICE_SET_OVERRIDE,
+            SERVICE_CLEAR_OVERRIDE,
+            SERVICE_RUN_ACTIONS,
+        ):
+            hass.services.async_remove(DOMAIN, service)
     return unload_ok
