@@ -1,7 +1,7 @@
 """Constants for Schedule Manager integration."""
 
 DOMAIN = "schedule_manager"
-VERSION = "0.1.9"
+VERSION = "0.1.10"
 
 # Storage keys
 STORAGE_KEY = f"{DOMAIN}_data"

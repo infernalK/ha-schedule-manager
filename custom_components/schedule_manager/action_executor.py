@@ -147,7 +147,7 @@ async def async_run_block_actions(
                 service,
                 block.id,
             )
-            await hass.services.async_call(domain, service, payload, blocking=False)
+            await hass.services.async_call(domain, service, payload, blocking=True)
             invoked += 1
         except Exception as err:  # noqa: BLE001
             _LOGGER.error(
