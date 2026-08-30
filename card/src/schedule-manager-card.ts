@@ -834,10 +834,11 @@ export class ScheduleManagerCard extends LitElement {
     const blocks = schedule.time_blocks || [];
     const showSlots = this._showSlotsOnCard();
     const clickToOpen = this._scheduleClickToOpenEditor();
+    const isDisabled = this._showScheduleEnableToggle() && !schedule.enabled;
 
     return html`
       <div
-        class="schedule${clickToOpen ? ' schedule--tap-opens-editor' : ''}"
+        class="schedule${clickToOpen ? ' schedule--tap-opens-editor' : ''}${isDisabled ? ' schedule--disabled' : ''}"
         tabindex=${clickToOpen ? 0 : nothing}
         role=${clickToOpen ? 'button' : nothing}
         aria-label=${clickToOpen

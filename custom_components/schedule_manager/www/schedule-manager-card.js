@@ -263,6 +263,13 @@ const styles = i$4 `
     margin-bottom: 0;
   }
 
+  /** Planning désactivé (toggle off) : les plages restent visibles mais grisées pour ne pas laisser croire qu'elles sont actives. */
+  .schedule--disabled .timeline-frise,
+  .schedule--disabled .sm-schedule-repeat-days {
+    opacity: 0.4;
+    filter: grayscale(0.6);
+  }
+
   .schedule-header {
     display: flex;
     align-items: center;
@@ -4463,9 +4470,10 @@ let ScheduleManagerCard = class ScheduleManagerCard extends s$2 {
         const blocks = schedule.time_blocks || [];
         const showSlots = this._showSlotsOnCard();
         const clickToOpen = this._scheduleClickToOpenEditor();
+        const isDisabled = this._showScheduleEnableToggle() && !schedule.enabled;
         return x `
       <div
-        class="schedule${clickToOpen ? ' schedule--tap-opens-editor' : ''}"
+        class="schedule${clickToOpen ? ' schedule--tap-opens-editor' : ''}${isDisabled ? ' schedule--disabled' : ''}"
         tabindex=${clickToOpen ? 0 : A}
         role=${clickToOpen ? 'button' : A}
         aria-label=${clickToOpen

@@ -63,6 +63,13 @@ export const styles = css`
     margin-bottom: 0;
   }
 
+  /** Planning désactivé (toggle off) : les plages restent visibles mais grisées pour ne pas laisser croire qu'elles sont actives. */
+  .schedule--disabled .timeline-frise,
+  .schedule--disabled .sm-schedule-repeat-days {
+    opacity: 0.4;
+    filter: grayscale(0.6);
+  }
+
   .schedule-header {
     display: flex;
     align-items: center;
