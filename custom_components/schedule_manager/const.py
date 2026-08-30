@@ -1,7 +1,7 @@
 """Constants for Schedule Manager integration."""
 
 DOMAIN = "schedule_manager"
-VERSION = "0.1.7"
+VERSION = "0.1.8"
 
 # Storage keys
 STORAGE_KEY = f"{DOMAIN}_data"
@@ -26,4 +26,4 @@ PLATFORMS = ["sensor", "switch"]
 # Carte Lovelace embarquée (voir custom_components/schedule_manager/www/).
 CARD_FILENAME = "schedule-manager-card.js"
 CARD_STATIC_URL_BASE = f"/{DOMAIN}_files"
-CARD_URL_PATH = f"{CARD_STATIC_URL_BASE}/{CARD_FILENAME}"
+CARD_URL_PATH = f"{CARD_STATIC_URL_BASE}/{CARD_FILENAME}?v={VERSION}"
