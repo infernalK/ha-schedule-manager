@@ -7,6 +7,7 @@ import asyncio
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -21,7 +22,7 @@ from .services import (
 
 
 class SchedulePlanningSwitchEntity(CoordinatorEntity, SwitchEntity):
-    """Interrupteur par planning — appareil dédié (`via_device` → hub Schedule Manager)."""
+    """Interrupteur par planning — appareil dédié (`via_device_id` → hub Schedule Manager)."""
 
     def __init__(
         self,
@@ -40,10 +41,12 @@ class SchedulePlanningSwitchEntity(CoordinatorEntity, SwitchEntity):
         if sch is None:
             return
         self._attr_name = sch.name
+        dev_reg = dr.async_get(self.coordinator.hass)
+        hub_device = dev_reg.async_get_device(identifiers={(DOMAIN, self._entry.entry_id)})
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, f"{self._entry.entry_id}_{self._schedule_id}")},
             manufacturer="Schedule Manager",
-            via_device=(DOMAIN, self._entry.entry_id),
+            via_device_id=hub_device.id if hub_device else None,
         )
 
     @property
