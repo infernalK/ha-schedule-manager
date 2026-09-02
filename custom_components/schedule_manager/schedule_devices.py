@@ -42,7 +42,14 @@ class SchedulePlanningSwitchEntity(CoordinatorEntity, SwitchEntity):
             return
         self._attr_name = sch.name
         dev_reg = dr.async_get(self.coordinator.hass)
-        hub_device = dev_reg.async_get_device(identifiers={(DOMAIN, self._entry.entry_id)})
+        get_by_identifier = getattr(dev_reg, "async_get_device_by_identifier", None)
+        if get_by_identifier is not None:
+            hub_device = get_by_identifier(
+                (DOMAIN, self._entry.entry_id), self._entry.entry_id
+            )
+        else:
+            # Repli pour Home Assistant < 2025.x, où cette méthode n'existe pas encore.
+            hub_device = dev_reg.async_get_device(identifiers={(DOMAIN, self._entry.entry_id)})
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, f"{self._entry.entry_id}_{self._schedule_id}")},
             manufacturer="Schedule Manager",

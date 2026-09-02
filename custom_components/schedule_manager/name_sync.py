@@ -45,8 +45,8 @@ def schedule_id_from_device_identifier(entry_id: str, identifier: str) -> str | 
     return body or None
 
 
-def _planning_device_identifier(entry_id: str, schedule_id: str) -> set[tuple[str, str]]:
-    return {(DOMAIN, f"{entry_id}_{schedule_id}")}
+def _planning_device_identifier(entry_id: str, schedule_id: str) -> tuple[str, str]:
+    return (DOMAIN, f"{entry_id}_{schedule_id}")
 
 
 def _display_name_from_registry(
@@ -76,7 +76,13 @@ async def async_sync_schedule_display_name_from_storage(
     if not trimmed:
         return
     dev_reg = dr.async_get(hass)
-    device = dev_reg.async_get_device(_planning_device_identifier(entry_id, schedule_id))
+    identifier = _planning_device_identifier(entry_id, schedule_id)
+    get_by_identifier = getattr(dev_reg, "async_get_device_by_identifier", None)
+    if get_by_identifier is not None:
+        device = get_by_identifier(identifier, entry_id)
+    else:
+        # Repli pour Home Assistant < 2025.x, où cette méthode n'existe pas encore.
+        device = dev_reg.async_get_device({identifier})
     if device is None:
         return
     current = (device.name_by_user or device.name or "").strip()
