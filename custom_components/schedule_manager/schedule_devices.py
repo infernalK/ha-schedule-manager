@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.config_entries import ConfigEntry
@@ -50,11 +51,16 @@ class SchedulePlanningSwitchEntity(CoordinatorEntity, SwitchEntity):
         else:
             # Repli pour Home Assistant < 2025.x, où cette méthode n'existe pas encore.
             hub_device = dev_reg.async_get_device(identifiers={(DOMAIN, self._entry.entry_id)})
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, f"{self._entry.entry_id}_{self._schedule_id}")},
-            manufacturer="Schedule Manager",
-            via_device_id=hub_device.id if hub_device else None,
-        )
+        device_info_kwargs: dict = {
+            "identifiers": {(DOMAIN, f"{self._entry.entry_id}_{self._schedule_id}")},
+            "manufacturer": "Schedule Manager",
+        }
+        if "via_device_id" in inspect.signature(dr.async_get_or_create).parameters:
+            device_info_kwargs["via_device_id"] = hub_device.id if hub_device else None
+        else:
+            # Repli pour Home Assistant < 2026.8, où via_device_id n'existe pas encore.
+            device_info_kwargs["via_device"] = (DOMAIN, self._entry.entry_id)
+        self._attr_device_info = DeviceInfo(**device_info_kwargs)
 
     @property
     def is_on(self) -> bool:

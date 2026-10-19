@@ -30,16 +30,13 @@ Si vous ne voulez pas utiliser la carte, vous pouvez quand même créer des plan
 
 ## Installation (méthode simple : HACS)
 
-1. Ouvrez **HACS** dans la barre latérale de Home Assistant.
-2. Menu **⋮** (trois points) → **Dépôts personnalisés** (ou équivalent selon votre langue).
-3. Collez l’adresse : `https://github.com/infernalK/ha-schedule-manager`  
-   - Catégorie : **Intégration** → **Ajouter**.
-4. Revenez dans HACS → section **Intégrations** → cherchez **Schedule Manager** → **Télécharger**.
-5. Si Home Assistant le demande, **redémarrez** la machine ou le conteneur.
-6. Allez dans **Paramètres** → **Appareils et services** → bouton **Ajouter une intégration** (en bas à droite).
-7. Cherchez **Schedule Manager** et suivez l’assistant jusqu’au bout (**Terminer** ou **Ignorer et terminer** pour les noms de pièces, ce n’est pas bloquant).
+Schedule Manager fait partie du dépôt par défaut de **HACS** : plus besoin d’ajouter un dépôt personnalisé.
 
-Lien utile pour ouvrir HACS depuis la doc : [créer un lien my.home-assistant.io vers HACS](https://my.home-assistant.io/create-link/?redirect=hacs_repository) en collant l’URL du dépôt ci-dessus.
+1. Ouvrez **HACS** dans la barre latérale de Home Assistant.
+2. Section **Intégrations** → bouton **Explorer et télécharger des dépôts** → cherchez **Schedule Manager** → **Télécharger**.
+3. Si Home Assistant le demande, **redémarrez** la machine ou le conteneur.
+4. Allez dans **Paramètres** → **Appareils et services** → bouton **Ajouter une intégration** (en bas à droite).
+5. Cherchez **Schedule Manager** et suivez l’assistant jusqu’au bout (**Terminer** ou **Ignorer et terminer** pour les noms de pièces, ce n’est pas bloquant).
 
 ---
 
