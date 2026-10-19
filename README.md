@@ -1,5 +1,9 @@
 # Schedule Manager — intégration Home Assistant
 
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=infernalK&repository=ha-schedule-manager&category=integration)
+[![GitHub release](https://img.shields.io/github/v/release/infernalK/ha-schedule-manager)](https://github.com/infernalK/ha-schedule-manager/releases)
+[![License](https://img.shields.io/github/license/infernalK/ha-schedule-manager)](LICENSE)
+
 Cette extension ajoute à Home Assistant des **plannings** : vous définissez des **créneaux** (par ex. de 7 h à 9 h) et ce qui doit se passer à ce moment-là (chauffage, lumières, scènes, etc.).
 
 ---
@@ -31,6 +35,8 @@ Si vous ne voulez pas utiliser la carte, vous pouvez quand même créer des plan
 ## Installation (méthode simple : HACS)
 
 Schedule Manager fait partie du dépôt par défaut de **HACS** : plus besoin d’ajouter un dépôt personnalisé.
+
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=infernalK&repository=ha-schedule-manager&category=integration)
 
 1. Ouvrez **HACS** dans la barre latérale de Home Assistant.
 2. Section **Intégrations** → bouton **Explorer et télécharger des dépôts** → cherchez **Schedule Manager** → **Télécharger**.
