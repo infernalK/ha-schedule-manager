@@ -55,7 +55,7 @@ class SchedulePlanningSwitchEntity(CoordinatorEntity, SwitchEntity):
             "identifiers": {(DOMAIN, f"{self._entry.entry_id}_{self._schedule_id}")},
             "manufacturer": "Schedule Manager",
         }
-        if "via_device_id" in inspect.signature(dr.async_get_or_create).parameters:
+        if "via_device_id" in inspect.signature(dev_reg.async_get_or_create).parameters:
             device_info_kwargs["via_device_id"] = hub_device.id if hub_device else None
         else:
             # Repli pour Home Assistant < 2026.8, où via_device_id n'existe pas encore.
